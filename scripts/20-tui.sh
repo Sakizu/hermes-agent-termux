@@ -12,6 +12,15 @@ set -eu
 
 : "${HERMES_WORK:?set HERMES_WORK}"
 : "${HERMES_SRC:?set HERMES_SRC}"
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "$0")" && pwd)/lib/build_env.sh"  # versions.env + derived paths
+
+# the bundle must be built with the pinned node major
+NODE_VER="$(node --version 2>/dev/null || echo "none")"
+case "$NODE_VER" in
+    v${HERMES_NODE_MAJOR}.*) echo "node $NODE_VER OK" ;;
+    *) echo "20-tui.sh: need node v${HERMES_NODE_MAJOR}.x, found: $NODE_VER" >&2; exit 1 ;;
+esac
 
 TUI_WORK="$HERMES_WORK/tui"
 rm -rf "$TUI_WORK"

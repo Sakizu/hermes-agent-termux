@@ -4,7 +4,9 @@
 Generalized from the 2026-10-04 port build (was closure.py with hardcoded paths).
 
 Usage: closure.py <uv.lock> [--json]
-Prints {"pure": [(name, ver)], "native": [...], "unknown": [...]} as JSON.
+Prints {"pure": [(name, ver, url, sha256)], "native": [...], "unknown": [...]} as JSON.
+"unknown" is fatal (exit 3): a native dep outside NATIVE_KNOWN must break the
+build loudly, never ship a .deb that ImportErrors on the phone.
 """
 from __future__ import annotations
 
@@ -92,13 +94,18 @@ def main() -> int:
             continue
         pkg = pick({"name": name, "version": ver})
         wheels = pkg.get("wheels", [])
-        wnames = [w if isinstance(w, str) else w.get("url", w.get("path", "")) for w in wheels]
-        pure_urls = [w for w in wnames if "none-any" in w]
-        if pure_urls:
-            # record the exact pure-wheel URL: pip download would otherwise
-            # resolve for the host platform and may fetch a platform wheel
-            # (e.g. charset-normalizer cp312 manylinux) instead of the pure one
-            pure.append([name, ver, sorted(pure_urls)[0]])
+        # keep (url, sha256) pairs: pip download would otherwise resolve for
+        # the host platform and may fetch a platform wheel (e.g.
+        # charset-normalizer cp312 manylinux) instead of the pure one
+        pure_wheels = [
+            (w["url"], w["hash"].split(":", 1)[1])
+            for w in wheels
+            if isinstance(w, dict) and "none-any" in w.get("url", "")
+            and w.get("hash", "").startswith("sha256:")
+        ]
+        if pure_wheels:
+            url, sha256 = sorted(pure_wheels)[0]
+            pure.append([name, ver, url, sha256])
         elif name in NATIVE_KNOWN:
             native.append([name, ver])
         else:
@@ -106,8 +113,11 @@ def main() -> int:
 
     result = {"pure": pure, "native": native, "unknown": unknown}
     if unknown:
-        print(f"WARNING: {len(unknown)} deps have no pure wheel and are not in NATIVE_KNOWN: "
+        print(f"FATAL: {len(unknown)} deps have no pure wheel and are not in NATIVE_KNOWN: "
               f"{[n for n, _ in unknown]}", file=sys.stderr)
+        print("Add a cross-build recipe (or a Depends:) for them, or extend NATIVE_KNOWN.",
+              file=sys.stderr)
+        return 3
     print(json.dumps(result, indent=1))
     return 0
 

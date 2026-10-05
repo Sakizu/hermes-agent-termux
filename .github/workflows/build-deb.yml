@@ -45,12 +45,18 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq curl unzip dpkg-dev git python3-packaging
+          sudo apt-get install -y -qq curl unzip dpkg-dev git
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install Python build helpers
+        # NB: apt's python3-packaging lands in /usr/lib/python3/dist-packages,
+        # visible only to /usr/bin/python3 — but setup-python prepends its
+        # toolcache Python to PATH, so install into *that* interpreter.
+        run: python3 -m pip install -q packaging
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
@@ -108,12 +114,23 @@ jobs:
           HERMES_WORK: ${{ runner.temp }}/hermes-work
         run: bash scripts/build.sh --ref "${{ steps.ref.outputs.ref }}"
 
+      - name: Write checksums
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          cd "${{ runner.temp }}/hermes-work"
+          for deb in hermes-agent_*_aarch64.deb; do
+            sha256sum "$deb" > "$deb.sha256"
+            cat "$deb.sha256"
+          done
+
       - name: Upload .deb artifact
         if: steps.skip.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: hermes-agent-deb
-          path: ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb
+          path: |
+            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb
+            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb.sha256
           if-no-files-found: error
 
       - name: Create GitHub release
@@ -125,4 +142,5 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "hermes-agent ${{ steps.ver.outputs.release_tag }}" \
             --notes "Termux-native .deb for upstream ${{ steps.ref.outputs.ref }} (deb version ${{ steps.ver.outputs.deb_version }})." \
-            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb
+            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb \
+            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb.sha256

@@ -9,18 +9,18 @@
 #   3. xrun.py (sysconfig sanitize) + build_py build_ext under xenv.sh
 #   4. assemble_wheel.py with the honest android tag
 #   5. upstream scripts/termux/python_linkage.py::repair_wheel
-#      (patchelf --add-needed libpython3.14.so)
+#      (patchelf --add-needed libpython${HERMES_PYVER}.so)
 #
 # Env: HERMES_WORK, HERMES_SRC (pristine upstream checkout, read-only use).
-set -eu
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# shellcheck disable=SC1091
-source "$REPO_ROOT/versions.env"
 
 : "${HERMES_WORK:?set HERMES_WORK}"
 : "${HERMES_SRC:?set HERMES_SRC (pristine upstream checkout)}"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/build_env.sh"  # versions.env + derived paths
 
 TC_DIR="$HERMES_WORK/toolchain"
 C_DIR="$HERMES_WORK/wheels-c"
@@ -28,7 +28,7 @@ WHEELS_OUT="$HERMES_WORK/wheelhouse"
 mkdir -p "$C_DIR" "$WHEELS_OUT" "$C_DIR/src" "$C_DIR/tools"
 
 LIB="$SCRIPT_DIR/lib"
-export HERMES_TC="$TC_DIR/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64"
+export HERMES_TC="$HERMES_NDK_DIR"
 export HERMES_TERMUX_PY="$TC_DIR/termux-py/data/data/com.termux/files/usr"
 export HERMES_TERMUX_LIB="$HERMES_TERMUX_PY/lib"
 export HERMES_TOOLS="$TC_DIR/tools"
@@ -43,8 +43,26 @@ fi
 VPY="$C_DIR/venv/bin/python"
 
 fetch_sdist() { # $1=url $2=sha256 $3=dest
-    if [ ! -f "$3" ]; then curl -sSL --retry 3 -o "$3" "$1"; fi
+    # --fail: a 404 must not be cached as a "successful" HTML download.
+    # If the cached file fails the hash check it is corrupt/stale: delete
+    # it and re-download once instead of aborting every future re-run.
+    if [ -f "$3" ] && ! echo "$2  $3" | sha256sum -c - >/dev/null 2>&1; then
+        echo "fetch_sdist: cached $(basename "$3") failed sha256; re-downloading"
+        rm -f "$3"
+    fi
+    if [ ! -f "$3" ]; then curl -sSL --fail --retry 3 -o "$3" "$1"; fi
     echo "$2  $3" | sha256sum -c -
+}
+
+# top dir of a tarball, validated: tar failures must abort here, not
+# produce a bogus srcdir that breaks confusingly much later
+tarball_topdir() { # $1=tarball -> prints top dir name
+    local top
+    top="$(tar -tzf "$1" | head -1)" || { echo "tarball_topdir: cannot list $1" >&2; return 1; }
+    top="${top#./}"
+    top="${top%%/*}"
+    [ -n "$top" ] || { echo "tarball_topdir: empty top dir in $1" >&2; return 1; }
+    printf '%s' "$top"
 }
 
 verify_so() { # $1=wheel
@@ -52,8 +70,8 @@ verify_so() { # $1=wheel
     (cd "$tmp" && unzip -q -o "$1" '*.so')
     find "$tmp" -name '*.so' | while read -r so; do
         file "$so" | grep -q "ARM aarch64" || { echo "NOT aarch64: $so"; exit 1; }
-        "$HERMES_TC/bin/llvm-readelf" -d "$so" | grep -q "libpython3.14.so" \
-            || echo "note: $so has no libpython3.14.so NEEDED (abi3?)"
+        "$HERMES_TC/bin/llvm-readelf" -d "$so" | grep -q "libpython${HERMES_PYVER}.so" \
+            || echo "note: $so has no libpython${HERMES_PYVER}.so NEEDED (abi3?)"
     done
     echo "verify OK: $1"
 }
@@ -66,16 +84,19 @@ build_one() { # $1=name $2=version $3=url $4=sha256 $5=extra ("abi3"|"")
     # (e.g. pillow_heif-1.6.0.tar.gz extracts to pillow_heif-1.6.0/)
     local srcdir
     if [ -f "$tarball" ]; then
-        srcdir="$C_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+        srcdir="$C_DIR/src/$(tarball_topdir "$tarball")"
     else
         srcdir="$C_DIR/src/${name}-${ver}"
     fi
     if [ ! -d "$srcdir" ]; then
         fetch_sdist "$url" "$sha" "$tarball"
         tar --no-same-owner -xzf "$tarball" -C "$C_DIR/src"
-        srcdir="$C_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+        srcdir="$C_DIR/src/$(tarball_topdir "$tarball")"
     fi
+    [ -d "$srcdir" ] || { echo "build_one: no source dir for $name" >&2; exit 1; }
     cd "$srcdir"
+    # drop stale wheels of this dist so re-runs never bundle old versions
+    rm -f "$WHEELS_OUT/${name//-/_}-"*.whl
 
     # per-package quirks (from the build log)
     case "$name" in
@@ -130,29 +151,36 @@ EOF
 
     rm -rf build
     "$VPY" "$LIB/xrun.py" build_py build_ext
-    local buildlib
-    buildlib="$(echo build/lib.*)"
+    # exactly one build/lib.* dir must exist; anything else is a broken build
+    shopt -s nullglob
+    local buildlibs=(build/lib.*)
+    shopt -u nullglob
+    [ "${#buildlibs[@]}" -eq 1 ] || { echo "build_one($name): expected 1 build/lib.*, found ${#buildlibs[@]}" >&2; exit 1; }
+    local buildlib="${buildlibs[0]}"
     if [ "$extra" = "abi3" ]; then
         "$VPY" "$LIB/assemble_wheel.py" --src "$srcdir" --build-lib "$buildlib" \
             --dist "$name" --version "$ver" --out "$WHEELS_OUT" \
-            --abi3-tag "cp38-abi3-android_24_arm64_v8a"
-        local whl="$WHEELS_OUT/${name//-/_}-${ver}-cp38-abi3-android_24_arm64_v8a.whl"
+            --abi3-tag "cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a"
+        local whl="$WHEELS_OUT/${name//-/_}-${ver}-cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a.whl"
     else
         "$VPY" "$LIB/assemble_wheel.py" --src "$srcdir" --build-lib "$buildlib" \
-            --dist "$name" --version "$ver" --out "$WHEELS_OUT"
-        local whl="$WHEELS_OUT/${name//-/_}-${ver}-cp314-cp314-android_24_arm64_v8a.whl"
+            --dist "$name" --version "$ver" --out "$WHEELS_OUT" \
+            --tag "cp${HERMES_PYVER//./}-cp${HERMES_PYVER//./}-android_${HERMES_ANDROID_API}_arm64_v8a"
+        local whl="$WHEELS_OUT/${name//-/_}-${ver}-cp${HERMES_PYVER//./}-cp${HERMES_PYVER//./}-android_${HERMES_ANDROID_API}_arm64_v8a.whl"
     fi
     # repair_wheel via upstream's script (read-only import from pristine checkout)
-    PATH="$HERMES_TOOLS:$PATH" "$VPY" - "$whl" "$HERMES_TERMUX_LIB/libpython3.14.so" <<EOF
-import sys
-sys.path.insert(0, "$HERMES_SRC/scripts/termux")
+    HERMES_WHL="$whl" HERMES_SRC_DIR="$HERMES_SRC" HERMES_PYLIB="$HERMES_TERMUX_LIB/libpython${HERMES_PYVER}.so" \
+    PATH="$HERMES_TOOLS:$PATH" "$VPY" <<'EOF'
+import os, sys
+sys.path.insert(0, os.environ["HERMES_SRC_DIR"] + "/scripts/termux")
 from pathlib import Path
 from python_linkage import repair_wheel
-n = repair_wheel(Path("$whl"), Path("$HERMES_TERMUX_LIB/libpython3.14.so"))
+whl = Path(os.environ["HERMES_WHL"])
+n = repair_wheel(whl, Path(os.environ["HERMES_PYLIB"]))
 print(f"linkage repair: {n} extensions touched")
 EOF
     verify_so "$whl"
-    unset PKG_CONFIG_PATH PKG_CONFIG_SYSROOT_DIR LIBHEIF_ROOT HERMES_CROSS_BUILD || true
+    unset PKG_CONFIG_PATH PKG_CONFIG_SYSROOT_DIR LIBHEIF_ROOT HERMES_CROSS_BUILD HERMES_WHL HERMES_SRC_DIR HERMES_PYLIB || true
 }
 
 # --- psutil (git pin, abi3) -------------------------------------------
@@ -173,17 +201,25 @@ build_psutil() { # $1=version $2=git-url $3=rev
     fi
     rm -rf build
     "$VPY" "$LIB/xrun.py" build_py build_ext
-    local buildlib; buildlib="$(echo build/lib.*)"
+    shopt -s nullglob
+    local buildlibs=(build/lib.*)
+    shopt -u nullglob
+    [ "${#buildlibs[@]}" -eq 1 ] || { echo "build_psutil: expected 1 build/lib.*, found ${#buildlibs[@]}" >&2; exit 1; }
+    local buildlib="${buildlibs[0]}"
     "$VPY" "$LIB/assemble_wheel.py" --src "$srcdir" --build-lib "$buildlib" \
         --dist psutil --version "$ver" --out "$WHEELS_OUT" \
-        --abi3-tag "cp38-abi3-android_24_arm64_v8a"
-    local whl="$WHEELS_OUT/psutil-${ver}-cp38-abi3-android_24_arm64_v8a.whl"
-    PATH="$HERMES_TOOLS:$PATH" "$VPY" - <<EOF
-import sys
-sys.path.insert(0, "$HERMES_SRC/scripts/termux")
+        --abi3-tag "cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a"
+    local whl="$WHEELS_OUT/psutil-${ver}-cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a.whl"
+    # drop stale psutil wheels so re-runs never bundle old versions
+    rm -f "$WHEELS_OUT"/psutil-*.whl
+    HERMES_WHL="$whl" HERMES_SRC_DIR="$HERMES_SRC" HERMES_PYLIB="$HERMES_TERMUX_LIB/libpython${HERMES_PYVER}.so" \
+    PATH="$HERMES_TOOLS:$PATH" "$VPY" <<'EOF'
+import os, sys
+sys.path.insert(0, os.environ["HERMES_SRC_DIR"] + "/scripts/termux")
 from pathlib import Path
 from python_linkage import repair_wheel
-n = repair_wheel(Path("$whl"), Path("$HERMES_TERMUX_LIB/libpython3.14.so"))
+whl = Path(os.environ["HERMES_WHL"])
+n = repair_wheel(whl, Path(os.environ["HERMES_PYLIB"]))
 print(f"linkage repair: {n} extensions touched")
 EOF
     verify_so "$whl"
@@ -191,13 +227,28 @@ EOF
 
 # --- main: cffi FIRST (unblocks nothing here, but keep the proven order) ---
 DEPS_JSON="$("$VPY" "$LIB/native_deps.py" "$HERMES_SRC/uv.lock")"
-get() { # $1=name $2=field
-    echo "$DEPS_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(p['$2'] for p in d if p['name']=='$1'))"
+get() { # $1=name $2=field -> value, or empty if upstream dropped the dep
+    echo "$DEPS_JSON" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ms = [p['$2'] for p in d if p['name'] == '$1']
+print(ms[0] if ms else '')
+"
 }
 
 for name in cffi httptools markupsafe pillow-heif; do
-    build_one "$name" "$(get "$name" version)" "$(get "$name" url)" "$(get "$name" sha256)"
+    ver="$(get "$name" version)"
+    if [ -z "$ver" ]; then
+        echo "10-wheels-c.sh: upstream dropped '$name'; skipping"
+        continue
+    fi
+    build_one "$name" "$ver" "$(get "$name" url)" "$(get "$name" sha256)"
 done
-build_psutil "$(get psutil version)" "$(get psutil url)" "$(get psutil rev)"
+psutil_ver="$(get psutil version)"
+if [ -z "$psutil_ver" ]; then
+    echo "10-wheels-c.sh: upstream dropped 'psutil'; skipping"
+else
+    build_psutil "$psutil_ver" "$(get psutil url)" "$(get psutil rev)"
+fi
 
 echo "C track complete: $(ls "$WHEELS_OUT"/*.whl | wc -l) wheels in $WHEELS_OUT"

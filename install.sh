@@ -49,14 +49,24 @@ else
         API_URL="https://api.github.com/repos/$REPO/releases/tags/$TAG"
     fi
     echo "==> resolving .deb from $API_URL"
-    DEB_URL="$(curl -sSL --retry 3 "$API_URL" | python3 -c '
+    {
+        read -r DEB_URL
+        read -r SHA_URL
+    } <<EOF
+$(curl -sSL --retry 3 "$API_URL" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
+deb = sha = ""
 for a in d.get("assets", []):
-    if a["name"].endswith("_aarch64.deb"):
-        print(a["browser_download_url"])
-        break
-')"
+    n = a["name"]
+    if n.endswith("_aarch64.deb"):
+        deb = a["browser_download_url"]
+    elif n.endswith("_aarch64.deb.sha256"):
+        sha = a["browser_download_url"]
+print(deb)
+print(sha)
+')
+EOF
     if [ -z "$DEB_URL" ]; then
         echo "install.sh: no aarch64 .deb asset found in that release" >&2
         exit 1
@@ -66,6 +76,14 @@ for a in d.get("assets", []):
     DEB="$TMPD/$(basename "$DEB_URL")"
     echo "==> downloading $(basename "$DEB_URL")"
     curl -fSL --retry 3 -o "$DEB" "$DEB_URL"
+    if [ -n "$SHA_URL" ]; then
+        echo "==> verifying sha256"
+        curl -fSL --retry 3 -o "$DEB.sha256" "$SHA_URL"
+        (cd "$TMPD" && sha256sum -c "$(basename "$DEB.sha256")") \
+            || { echo "install.sh: sha256 mismatch — download may be corrupt" >&2; exit 1; }
+    else
+        echo "install.sh: warning: no .sha256 asset published for this release; skipping integrity check" >&2
+    fi
 fi
 
 # apt needs a path (not a bare name) for local files

@@ -1,11 +1,14 @@
 --- a/hermes_platform/host/facts.py
 +++ b/hermes_platform/host/facts.py
-@@ -317,7 +317,7 @@
+@@ -317,6 +317,11 @@
              return _windows_interactive_session()
          except (AttributeError, OSError, TypeError, ValueError):
              return False
--    if sys.platform.startswith("linux"):
-+    if sys.platform.startswith(("linux", "android")):
++    if sys.platform == "android":
++        # Termux has no systemd/logind: /proc/self/sessionid and
++        # /run/user/<uid> never exist, so the linux heuristic below would
++        # always report False. A Termux shell is an interactive user session.
++        return True
+     if sys.platform.startswith("linux"):
          session_id = _read_text("/proc/self/sessionid", 64).strip()
          return bool(session_id and session_id != "4294967295" and os.path.isdir(f"/run/user/{os.getuid()}"))
-     return True

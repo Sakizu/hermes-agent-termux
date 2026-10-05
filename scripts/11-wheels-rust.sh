@@ -10,15 +10,15 @@
 # Do NOT use `pip wheel` / maturin pep517 here: they build for the host.
 #
 # Env: HERMES_WORK, HERMES_SRC (pristine upstream checkout, read-only).
-set -eu
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# shellcheck disable=SC1091
-source "$REPO_ROOT/versions.env"
 
 : "${HERMES_WORK:?set HERMES_WORK}"
 : "${HERMES_SRC:?set HERMES_SRC}"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/build_env.sh"  # versions.env + derived paths
 
 TC_DIR="$HERMES_WORK/toolchain"
 R_DIR="$HERMES_WORK/wheels-rust"
@@ -29,7 +29,7 @@ LIB="$SCRIPT_DIR/lib"
 # venv from the C track (10-wheels-c.sh runs first); has `packaging`
 # installed, which native_deps.py needs.
 VPY="$HERMES_WORK/wheels-c/venv/bin/python"
-export HERMES_TC="$TC_DIR/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64"
+export HERMES_TC="$HERMES_NDK_DIR"
 export HERMES_TERMUX_PY="$TC_DIR/termux-py/data/data/com.termux/files/usr"
 export HERMES_CARGO_HOME="$HERMES_WORK/cargo-home"
 export HERMES_WORK="$HERMES_WORK"
@@ -53,8 +53,26 @@ maturin --version
 
 # --- helpers ----------------------------------------------------------
 fetch_sdist() { # $1=url $2=sha256 $3=dest
-    if [ ! -f "$3" ]; then curl -sSL --retry 3 -o "$3" "$1"; fi
+    # --fail: a 404 must not be cached as a "successful" HTML download.
+    # If the cached file fails the hash check it is corrupt/stale: delete
+    # it and re-download once instead of aborting every future re-run.
+    if [ -f "$3" ] && ! echo "$2  $3" | sha256sum -c - >/dev/null 2>&1; then
+        echo "fetch_sdist: cached $(basename "$3") failed sha256; re-downloading"
+        rm -f "$3"
+    fi
+    if [ ! -f "$3" ]; then curl -sSL --fail --retry 3 -o "$3" "$1"; fi
     echo "$2  $3" | sha256sum -c -
+}
+
+# top dir of a tarball, validated: tar failures must abort here, not
+# produce a bogus srcdir that breaks confusingly much later
+tarball_topdir() { # $1=tarball -> prints top dir name
+    local top
+    top="$(tar -tzf "$1" | head -1)" || { echo "tarball_topdir: cannot list $1" >&2; return 1; }
+    top="${top#./}"
+    top="${top%%/*}"
+    [ -n "$top" ] || { echo "tarball_topdir: empty top dir in $1" >&2; return 1; }
+    printf '%s' "$top"
 }
 
 verify_wheel() { # $1=wheel
@@ -65,7 +83,7 @@ verify_wheel() { # $1=wheel
     done
     case "$1" in *abi3*) : ;; # abi3 wheels need not link libpython
         *) "$HERMES_TC/bin/llvm-readelf" -d "$tmp"/*/*.so "$tmp"/*.so 2>/dev/null \
-               | grep -q "libpython3.14.so" || echo "note: no libpython3.14.so NEEDED in $1";;
+               | grep -q "libpython${HERMES_PYVER}.so" || echo "note: no libpython${HERMES_PYVER}.so NEEDED in $1";;
     esac
     echo "verify OK: $(basename "$1")"
 }
@@ -83,41 +101,58 @@ setup_cryptography_env() {
     # satisfies all three (see build log quirk 5).
     local shim="$R_DIR/pyo3-cross"
     local pylib="$HERMES_TERMUX_PY/lib"
-    mkdir -p "$shim/lib/python3.14"
-    ln -sf "$pylib/libpython3.14.so" "$shim/lib/python3.14/libpython3.14.so"
+    mkdir -p "$shim/lib/python${HERMES_PYVER}"
+    ln -sf "$pylib/libpython${HERMES_PYVER}.so" "$shim/lib/python${HERMES_PYVER}/libpython${HERMES_PYVER}.so"
     # pyo3 abi3 emits -lpython3 (stable-ABI name); Termux ships no such stub.
-    ln -sf "libpython3.14.so" "$shim/lib/python3.14/libpython3.so"
-    local scd; scd="$(echo "$pylib"/python3.14/_sysconfigdata__android*.py | head -1)"
-    ln -sf "$scd" "$shim/lib/python3.14/"
-    mkdir -p "$shim/include" && ln -sfn "$HERMES_TERMUX_PY/include/python3.14" "$shim/include/python3.14"
+    ln -sf "libpython${HERMES_PYVER}.so" "$shim/lib/python${HERMES_PYVER}/libpython3.so"
+    local scd; scd="$(echo "$pylib"/python${HERMES_PYVER}/_sysconfigdata__android*.py | head -1)"
+    ln -sf "$scd" "$shim/lib/python${HERMES_PYVER}/"
+    mkdir -p "$shim/include" && ln -sfn "$HERMES_TERMUX_PY/include/python${HERMES_PYVER}" "$shim/include/python${HERMES_PYVER}"
     # cryptography-cffi's build.rs derives the Python include dir from
     # PYO3_CROSS_LIB_DIR as <prefix>/include/<last-path-component>, so it
     # must point at <shim>/lib/python3.14 (not $shim itself) for the
-    # include to resolve to $shim/include/python3.14.
-    export PYO3_CROSS_LIB_DIR="$shim/lib/python3.14"
+    # include to resolve to $shim/include/python${HERMES_PYVER}.
+    export PYO3_CROSS_LIB_DIR="$shim/lib/python${HERMES_PYVER}"
 }
 
 # --- main -------------------------------------------------------------
 DEPS_JSON="$("$VPY" "$LIB/native_deps.py" "$HERMES_SRC/uv.lock")"
-get() { # $1=name $2=field
-    echo "$DEPS_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(p['$2'] for p in d if p['name']=='$1'))"
+get() { # $1=name $2=field -> value, or empty if upstream dropped the dep
+    echo "$DEPS_JSON" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ms = [p['$2'] for p in d if p['name'] == '$1']
+print(ms[0] if ms else '')
+"
 }
 
+# fresh dist dir: only wheels built by this run are collected below,
+# so a removed/bumped dep never leaves a stale wheel behind
+rm -f "$R_DIR"/dist/*.whl
+
 for name in jiter pydantic-core watchfiles firecrawl-anydoc cryptography; do
-    ver="$(get "$name" version)"; url="$(get "$name" url)"; sha="$(get "$name" sha256)"
+    ver="$(get "$name" version)"
+    if [ -z "$ver" ]; then
+        echo "11-wheels-rust.sh: upstream dropped '$name'; skipping"
+        continue
+    fi
+    url="$(get "$name" url)"; sha="$(get "$name" sha256)"
     tarball="$R_DIR/src/$(basename "$url")"
     # the sdist top dir may normalize -/_ differently than $name
     # (e.g. pydantic_core-2.46.4.tar.gz extracts to pydantic_core-2.46.4/)
     if [ -f "$tarball" ]; then
-        srcdir="$R_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+        srcdir="$R_DIR/src/$(tarball_topdir "$tarball")"
     else
         srcdir="$R_DIR/src/${name}-${ver}"
     fi
     if [ ! -d "$srcdir" ]; then
         fetch_sdist "$url" "$sha" "$tarball"
         tar --no-same-owner -xzf "$tarball" -C "$R_DIR/src"
-        srcdir="$R_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+        srcdir="$R_DIR/src/$(tarball_topdir "$tarball")"
     fi
+    [ -d "$srcdir" ] || { echo "11-wheels-rust.sh: no source dir for $name" >&2; exit 1; }
+    # drop stale wheels of this dist so re-runs never bundle old versions
+    rm -f "$WHEELS_OUT/${name//-/_}-"*.whl
     if [ "$name" = "cryptography" ]; then setup_cryptography_env; fi
     (cd "$srcdir" && maturin build --release --target aarch64-linux-android \
         --out "$R_DIR/dist")

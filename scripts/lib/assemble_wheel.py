@@ -39,6 +39,13 @@ ANDROID_EXT_SUFFIX = ".cpython-314-aarch64-linux-android.so"
 ABI3_EXT_SUFFIX = ".abi3.so"
 
 
+def _android_ext_suffix(tag: str) -> str:
+    # derive ".cpython-314-aarch64-linux-android.so" from a tag like
+    # "cp314-cp314-android_24_arm64_v8a" so a python bump flows through
+    m = re.match(r"cp(\d+)-", tag)
+    return f".cpython-{m.group(1) if m else '314'}-aarch64-linux-android.so"
+
+
 def _b64sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -47,11 +54,11 @@ def _b64sha256(path: str) -> str:
     return "sha256=" + base64.urlsafe_b64encode(h.digest()).rstrip(b"=").decode()
 
 
-def _rename_ext(basename: str, abi3: bool) -> str:
+def _rename_ext(basename: str, abi3: bool, tag: str) -> str:
     # 'parser.cpython-312-x86_64-linux-gnu.so' -> 'parser.cpython-314-aarch64-linux-android.so'
     # (or 'parser.abi3.so' in abi3 mode)
     stem = basename.split(".", 1)[0]
-    return stem + (ABI3_EXT_SUFFIX if abi3 else ANDROID_EXT_SUFFIX)
+    return stem + (ABI3_EXT_SUFFIX if abi3 else _android_ext_suffix(tag))
 
 
 def main() -> int:
@@ -89,7 +96,7 @@ def main() -> int:
             rel = os.path.relpath(src, args.build_lib)
             if fn.endswith(".so"):
                 d, base = os.path.split(rel)
-                rel = os.path.join(d, _rename_ext(base, abi3))
+                rel = os.path.join(d, _rename_ext(base, abi3, tag))
                 renamed += 1
             dst = os.path.join(stage, rel)
             os.makedirs(os.path.dirname(dst), exist_ok=True)

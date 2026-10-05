@@ -29,6 +29,10 @@ name: publish-apt
 # would spawn a failing run on every release in the meantime.)
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag holding the .deb to publish (e.g. v2026.9.24-termux1)"
+        required: true
 
 concurrency:
   group: apt-publish
@@ -75,7 +79,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p dl
-          gh release download "${{ github.event.release.tag_name }}" \
+          gh release download "${{ inputs.tag }}" \
             --repo "${{ github.repository }}" --pattern '*.deb' --dir dl
           ls dl/
 
@@ -118,9 +122,22 @@ jobs:
           set -eu
           REPO="$RUNNER_TEMP/aptrepo"
           mkdir -p "$REPO/debs" "$REPO/dists/stable/main/binary-aarch64"
-          # pull the existing pool so the index keeps older versions
-          rclone copy "r2:${R2_BUCKET}/debs" "$REPO/debs" 2>/dev/null \
-            || echo "no existing pool in R2 (first publish)"
+          # pull the existing pool so the index keeps older versions.
+          # Fail loudly on real errors (auth/bucket/network); only tolerate
+          # a missing/empty pool on first publish.
+          set +e
+          rclone copy "r2:${R2_BUCKET}/debs" "$REPO/debs" 2>"$REPO/rclone.err"
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            if grep -qiE "directory not found|bucket.*not found|no such|404" "$REPO/rclone.err"; then
+              echo "no existing pool in R2 (first publish)"
+            else
+              cat "$REPO/rclone.err" >&2
+              echo "publish.yml: failed to fetch existing pool from R2" >&2
+              exit 1
+            fi
+          fi
           cp dl/*.deb "$REPO/debs/"
           (cd "$REPO" && dpkg-scanpackages --arch aarch64 debs /dev/null \
             > dists/stable/main/binary-aarch64/Packages)

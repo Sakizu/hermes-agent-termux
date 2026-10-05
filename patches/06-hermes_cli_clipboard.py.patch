@@ -1,11 +1,20 @@
 --- a/hermes_cli/clipboard.py
 +++ b/hermes_cli/clipboard.py
-@@ -84,7 +84,7 @@
+@@ -84,10 +84,16 @@
      ps_argv = [*_PS_FLAGS, "-Command", "Set-Clipboard -Value ([System.Text.Encoding]::UTF8"
                 f".GetString([System.Convert]::FromBase64String('{b64}')))"]
      ps_kw, pipe = {"stdin": subprocess.DEVNULL}, {"input": data}
 -    linux = sys.platform not in ("darwin", "win32")
 +    linux = sys.platform not in ("darwin", "win32", "android")
++    # Termux: wl-copy/xclip/xsel do not exist here; the native clipboard
++    # tool is termux-clipboard-set (from the termux-api package). If it is
++    # absent the OSError is caught by the caller and falls through to the
++    # OSC 52 fallback like every other missing backend.
++    android = sys.platform == "android"
      return [(argv, kw) for enabled, argv, kw in (
          (sys.platform == "darwin", ["pbcopy"], pipe),
          (sys.platform == "win32", ["powershell", *ps_argv], ps_kw),
++        (android, ["termux-clipboard-set"], pipe),
+         (linux and _is_wsl(), ["powershell.exe", *ps_argv], ps_kw),
+         (linux and os.environ.get("WAYLAND_DISPLAY"), ["wl-copy", "--type", "text/plain"], pipe),
+         (linux, ["xclip", "-selection", "clipboard", "-in"], pipe),
