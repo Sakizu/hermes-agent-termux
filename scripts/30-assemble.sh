@@ -46,7 +46,10 @@ INERT="tests tests-js website evals .github nix docker apps ui-tui web scripts"
 INERT="$INERT contributors optional-skills assets"
 # Root dev files: exact names only (a bare *.md would also kill nested
 # SKILL.md files, which the skills system reads at runtime).
-ROOT_DEV="AGENTS.md SOUL.md CONTRIBUTING.md CONTRIBUTING.es.md README.md README.es.md README.ur-pk.md README.zh-CN.md SECURITY.md SECURITY.es.md Dockerfile docker-compose.yml docker-compose.windows.yml uv.lock flake.lock package-lock.json"
+# NOTE: uv.lock is deliberately NOT in this list — pm/packages.py
+# _uv_lock_digest() stats it unconditionally at runtime (hermes pm install
+# crashes without it). 1.2MB, ships with the app.
+ROOT_DEV="AGENTS.md SOUL.md CONTRIBUTING.md CONTRIBUTING.es.md README.md README.es.md README.ur-pk.md README.zh-CN.md SECURITY.md SECURITY.es.md Dockerfile docker-compose.yml docker-compose.windows.yml flake.lock package-lock.json"
 git -C "$HERMES_SRC" archive --format=tar "$UPSTREAM_REF" -- \
     $(for d in $INERT; do printf ':(exclude)%s ' "$d"; done) \
     $(for f in $ROOT_DEV; do printf ':(exclude)%s ' "$f"; done) \
@@ -335,6 +338,11 @@ if [ -e "$APP/plugins/hermes-achievements/docs" ]; then
     echo "QA FAIL: achievements docs resurrected" >&2; exit 1
 fi
 echo "QA: round-2 dead weight absent"
+# guardrail: uv.lock must ship — pm/packages.py _uv_lock_digest() stats it
+# unconditionally; hermes pm install crashes with FileNotFoundError without
+# it (regression caught on-device 2026-10-06, fixed by un-excluding it above).
+test -f "$APP/uv.lock" || { echo "QA FAIL: uv.lock missing (pm hard-requires it)" >&2; exit 1; }
+echo "QA: uv.lock present"
 # pure-python smoke test on host (native .so load fails on x86_64: expected);
 # the import result is checked directly — never piped through tail.
 # PYTHONDONTWRITEBYTECODE=1: the import must not re-litter __pycache__ into the
