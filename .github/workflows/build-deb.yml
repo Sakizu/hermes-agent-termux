@@ -109,19 +109,31 @@ jobs:
             n=$((n + 1))
           done
           rtag="${tagref}-termux${n}"
+          # Upstream release info for the title: "Hermes Agent Termux v0.21.5 (v2026.9.24)".
+          # Tag builds use their own tag's release; commit builds use latest.
           if [[ "$ref" == v* ]]; then
+            rel_json="$(gh api "repos/${UPSTREAM_REPO}/releases/tags/${ref}" 2>/dev/null || true)"
             debver="$(python3 scripts/deb_version.py "$ref" "$n")"
           else
-            base_ver="$(gh api "repos/NousResearch/hermes-agent/releases/latest" --jq '.name' 2>/dev/null | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+            rel_json="$(gh api "repos/${UPSTREAM_REPO}/releases/latest" 2>/dev/null || true)"
+            base_ver="$(printf '%s' "$rel_json" | python3 -c 'import json,sys,re; m=re.search(r"v(\d+\.\d+\.\d+)", json.load(sys.stdin).get("name","")); print(m.group(1) if m else "")' 2>/dev/null || true)"
             if [ -n "$base_ver" ]; then
               debver="$(python3 scripts/deb_version.py "$ref" "$base_ver")"
             else
               debver="$(python3 scripts/deb_version.py "$ref")"
             fi
           fi
+          up_name="$(printf '%s' "$rel_json" | python3 -c 'import json,sys,re; m=re.search(r"v(\d+\.\d+\.\d+)", json.load(sys.stdin).get("name","")); print("v"+m.group(1) if m else "")' 2>/dev/null || true)"
+          up_tag="$(printf '%s' "$rel_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name",""))' 2>/dev/null || true)"
+          if [ -n "$up_name" ] && [ -n "$up_tag" ]; then
+            rtitle="Hermes Agent Termux ${up_name} (${up_tag})"
+          else
+            rtitle="Hermes Agent Termux ${rtag}"
+          fi
           echo "release_tag=$rtag" >> "$GITHUB_OUTPUT"
           echo "deb_version=$debver" >> "$GITHUB_OUTPUT"
-          echo "Release tag: $rtag / deb version: $debver"
+          echo "release_title=$rtitle" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $rtag / deb version: $debver / title: $rtitle"
 
       - name: Build the .deb
         if: steps.skip.outputs.skip != 'true'
@@ -156,7 +168,6 @@ jobs:
         run: |
           gh release create "${{ steps.ver.outputs.release_tag }}" \
             --repo "${{ github.repository }}" \
-            --title "hermes-agent ${{ steps.ver.outputs.release_tag }}" \
-            --notes "Termux-native .deb for upstream ${{ steps.ref.outputs.ref }} (deb version ${{ steps.ver.outputs.deb_version }})." \
+            --title "${{ steps.ver.outputs.release_title }}" \
             ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb \
             ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb.sha256
