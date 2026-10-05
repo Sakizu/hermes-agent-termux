@@ -16,7 +16,7 @@ set -eu
 TUI_WORK="$HERMES_WORK/tui"
 rm -rf "$TUI_WORK"
 # fresh copy so the phone-target tree is never polluted by node_modules
-cp -a "$HERMES_SRC" "$TUI_WORK"
+cp -a --no-preserve=ownership "$HERMES_SRC" "$TUI_WORK"
 rm -rf "$TUI_WORK/.git"
 
 cd "$TUI_WORK"
