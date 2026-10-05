@@ -24,9 +24,11 @@
 
 name: publish-apt
 
+# Manual-only until the APT repository is explicitly approved and the
+# required secrets are configured. (A `release: published` trigger here
+# would spawn a failing run on every release in the meantime.)
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
 
 concurrency:
   group: apt-publish
