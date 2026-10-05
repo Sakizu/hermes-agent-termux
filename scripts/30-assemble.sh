@@ -146,7 +146,7 @@ dpkg-deb --build "$STAGE" "$OUT"
 echo "--- QA ---"
 dpkg-deb --info "$OUT" | head -12
 # no stray absolute paths outside the Termux prefix or DEBIAN
-bad="$(dpkg-deb -c "$OUT" | awk '{print $6}' | grep -v -e '^\./$' -e '^\./DEBIAN' -e '^\./data/data/com.termux/' || true)"
+bad="$(dpkg-deb -c "$OUT" | awk '{print $6}' | grep -v -e '^\./$' -e '^\./DEBIAN' -e '^\./data/$' -e '^\./data/data/$' -e '^\./data/data/com.termux/' || true)"
 if [ -n "$bad" ]; then
     echo "$bad" | head
     echo "QA FAIL: files outside ./data/data/com.termux or ./DEBIAN" >&2; exit 1
