@@ -90,7 +90,11 @@ setup_cryptography_env() {
     local scd; scd="$(echo "$pylib"/python3.14/_sysconfigdata__android*.py | head -1)"
     ln -sf "$scd" "$shim/lib/python3.14/"
     mkdir -p "$shim/include" && ln -sfn "$HERMES_TERMUX_PY/include/python3.14" "$shim/include/python3.14"
-    export PYO3_CROSS_LIB_DIR="$shim"
+    # cryptography-cffi's build.rs derives the Python include dir from
+    # PYO3_CROSS_LIB_DIR as <prefix>/include/<last-path-component>, so it
+    # must point at <shim>/lib/python3.14 (not $shim itself) for the
+    # include to resolve to $shim/include/python3.14.
+    export PYO3_CROSS_LIB_DIR="$shim/lib/python3.14"
 }
 
 # --- main -------------------------------------------------------------
