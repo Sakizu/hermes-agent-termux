@@ -165,8 +165,12 @@ build_psutil() { # $1=version $2=git-url $3=rev
     (cd "$srcdir" && git fetch -q origin && git checkout -q "$rev")
     cd "$srcdir"
     # PKG-INFO does not exist in a git checkout: generate via egg_info
-    # (uses psutil's own scripts/internal/, no network).
-    [ -f PKG-INFO ] || "$VPY" "$LIB/xrun.py" egg_info -e .
+    # (uses psutil's own scripts/internal/, no network). egg_info writes
+    # psutil.egg-info/PKG-INFO; assemble_wheel.py wants top-level PKG-INFO.
+    if [ ! -f PKG-INFO ]; then
+        "$VPY" "$LIB/xrun.py" egg_info -e .
+        cp psutil.egg-info/PKG-INFO PKG-INFO
+    fi
     rm -rf build
     "$VPY" "$LIB/xrun.py" build_py build_ext
     local buildlib; buildlib="$(echo build/lib.*)"
