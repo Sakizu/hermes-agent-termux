@@ -74,7 +74,7 @@ python3 - "$RESVG_FILE" "$A_DIR" <<'EOF'
 import re, sys, urllib.request
 want, out = sys.argv[1], sys.argv[2]
 html = urllib.request.urlopen("https://pypi.org/simple/resvg-py/").read().decode()
-m = re.search(r'href="([^"]*' + re.escape(want) + r')"', html)
+m = re.search(r'href="([^"]*' + re.escape(want) + r'(?:#[^"]*)?)"', html)
 assert m, f"{want} not on the simple index"
 urllib.request.urlretrieve(m.group(1), f"{out}/{want}")
 print(f"resvg-py: {want}")
