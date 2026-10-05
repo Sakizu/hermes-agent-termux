@@ -102,7 +102,16 @@ jobs:
             n=$((n + 1))
           done
           rtag="${ref}-termux${n}"
-          debver="$(python3 scripts/deb_version.py "$ref" "$n")"
+          if [[ "$ref" == v* ]]; then
+            debver="$(python3 scripts/deb_version.py "$ref" "$n")"
+          else
+            base_ver="$(gh api "repos/NousResearch/hermes-agent/releases/latest" --jq '.name' 2>/dev/null | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+            if [ -n "$base_ver" ]; then
+              debver="$(python3 scripts/deb_version.py "$ref" "$base_ver")"
+            else
+              debver="$(python3 scripts/deb_version.py "$ref")"
+            fi
+          fi
           echo "release_tag=$rtag" >> "$GITHUB_OUTPUT"
           echo "deb_version=$debver" >> "$GITHUB_OUTPUT"
           echo "Release tag: $rtag / deb version: $debver"
