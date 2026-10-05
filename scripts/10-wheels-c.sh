@@ -61,11 +61,19 @@ verify_so() { # $1=wheel
 # --- per-package build ------------------------------------------------
 build_one() { # $1=name $2=version $3=url $4=sha256 $5=extra ("abi3"|"")
     local name="$1" ver="$2" url="$3" sha="$4" extra="${5:-}"
-    local srcdir="$C_DIR/src/${name}-${ver}"
+    local tarball="$C_DIR/src/$(basename "$url")"
+    # the sdist top dir may normalize -/_ differently than $name
+    # (e.g. pillow_heif-1.6.0.tar.gz extracts to pillow_heif-1.6.0/)
+    local srcdir
+    if [ -f "$tarball" ]; then
+        srcdir="$C_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+    else
+        srcdir="$C_DIR/src/${name}-${ver}"
+    fi
     if [ ! -d "$srcdir" ]; then
-        local tarball="$C_DIR/src/$(basename "$url")"
         fetch_sdist "$url" "$sha" "$tarball"
         tar --no-same-owner -xzf "$tarball" -C "$C_DIR/src"
+        srcdir="$C_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
     fi
     cd "$srcdir"
 
@@ -80,9 +88,10 @@ build_one() { # $1=name $2=version $3=url $4=sha256 $5=extra ("abi3"|"")
             export HERMES_CROSS_BUILD=1
             # setup.py's linux branch unconditionally adds /usr/include etc.;
             # the host headers shadow the NDK sysroot. Skip them when
-            # cross-building (scratch copy only; the sdist is re-extracted
-            # fresh on rebuilds).
-            if grep -q '"/usr/include"' setup.py; then
+            # cross-building.
+            if grep -q 'HERMES_CROSS_BUILD' setup.py; then
+                echo "pillow-heif setup.py already patched"
+            elif grep -q '"/usr/include"' setup.py; then
                 python3 - "$srcdir/setup.py" <<'EOF'
 import re, sys
 p = sys.argv[1]
