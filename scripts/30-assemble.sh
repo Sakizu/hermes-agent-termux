@@ -48,15 +48,24 @@ bash "$REPO_ROOT/patches/apply.sh" "$APP"
 PURE_DIR="$A_DIR/pure"; mkdir -p "$PURE_DIR"
 python3 "$LIB/closure.py" "$HERMES_SRC/uv.lock" > "$A_DIR/closure.json"
 python3 - "$A_DIR/closure.json" "$PURE_DIR" <<'EOF'
-import json, subprocess, sys, glob, os
+import json, sys, os, time, urllib.request
 closure = json.load(open(sys.argv[1]))
 out = sys.argv[2]
-for name, ver in closure["pure"]:
-    subprocess.run([sys.executable, "-m", "pip", "download", "--no-deps",
-                    "--only-binary=:all:", "-q", "-d", out, f"{name}=={ver}"],
-                   check=True)
-    cands = [p for p in glob.glob(os.path.join(out, "*.whl")) if "none-any" in p]
-    assert cands, f"no pure wheel downloaded for {name}=={ver}"
+def fetch(url, dest):
+    for attempt in range(4):
+        try:
+            urllib.request.urlretrieve(url, dest)
+            return
+        except Exception as e:
+            if attempt == 3:
+                raise
+            time.sleep(2 * (attempt + 1))
+for name, ver, url in closure["pure"]:
+    dest = os.path.join(out, url.rsplit("/", 1)[-1])
+    assert "none-any" in dest, f"not a pure wheel URL for {name}=={ver}: {url}"
+    if not os.path.exists(dest):
+        fetch(url, dest)
+    assert os.path.exists(dest), f"missing pure wheel for {name}=={ver}"
 print(f"downloaded {len(closure['pure'])} pure wheels")
 EOF
 for whl in "$PURE_DIR"/*none-any.whl; do unzip -q -o "$whl" -d "$SITE"; done

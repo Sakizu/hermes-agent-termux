@@ -93,8 +93,12 @@ def main() -> int:
         pkg = pick({"name": name, "version": ver})
         wheels = pkg.get("wheels", [])
         wnames = [w if isinstance(w, str) else w.get("url", w.get("path", "")) for w in wheels]
-        if any("none-any" in w for w in wnames):
-            pure.append([name, ver])
+        pure_urls = [w for w in wnames if "none-any" in w]
+        if pure_urls:
+            # record the exact pure-wheel URL: pip download would otherwise
+            # resolve for the host platform and may fetch a platform wheel
+            # (e.g. charset-normalizer cp312 manylinux) instead of the pure one
+            pure.append([name, ver, sorted(pure_urls)[0]])
         elif name in NATIVE_KNOWN:
             native.append([name, ver])
         else:
