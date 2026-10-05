@@ -1,0 +1,19 @@
+--- a/pm/install.py
++++ b/pm/install.py
+@@ -153,9 +153,14 @@
+     (target, tuple(artifact sha256s)) — or None when the lock pins no
+     artifacts (nothing digest-bound to compare)."""
+     artifacts = lockfile.artifacts(name, target)
+-    if not artifacts:
++    # Pin-only packages (e.g. termux-docker: a docker:// digest reference
++    # with no downloadable bytes) carry no sha256 key. They are nothing
++    # digest-bound for pm to compare -- docker verifies the digest itself
++    # at pull time -- so they fold into the same None contract as above.
++    digests = tuple(a["sha256"] for a in artifacts if "sha256" in a)
++    if not digests:
+         return None
+-    return (target, tuple(a["sha256"] for a in artifacts))
++    return (target, digests)
+ 
+ 
+ def lazy_installs_allowed() -> bool:
