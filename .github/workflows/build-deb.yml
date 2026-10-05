@@ -82,9 +82,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ref="${{ steps.ref.outputs.ref }}"
+          if [[ "$ref" == v* ]]; then tagref="$ref"; else tagref="${ref:0:7}"; fi
           existing="$(gh api "repos/${{ github.repository }}/releases" --jq '.[].tag_name' 2>/dev/null || true)"
-          if printf '%s\n' "$existing" | grep -q "^${ref}-termux"; then
-            echo "already built: ${ref} already has a -termux release; skipping"
+          if printf '%s\n' "$existing" | grep -q "^${tagref}-termux"; then
+            echo "already built: ${tagref} already has a -termux release; skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -97,11 +98,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ref="${{ steps.ref.outputs.ref }}"
+          # Short tag: tags stay as-is, commits use short SHA (matches 1298c8e-termuxN style).
+          if [[ "$ref" == v* ]]; then
+            tagref="$ref"
+          else
+            tagref="${ref:0:7}"
+          fi
           n=1
-          while gh release view "${ref}-termux${n}" --repo "${{ github.repository }}" >/dev/null 2>&1; do
+          while gh release view "${tagref}-termux${n}" --repo "${{ github.repository }}" >/dev/null 2>&1; do
             n=$((n + 1))
           done
-          rtag="${ref}-termux${n}"
+          rtag="${tagref}-termux${n}"
           if [[ "$ref" == v* ]]; then
             debver="$(python3 scripts/deb_version.py "$ref" "$n")"
           else
