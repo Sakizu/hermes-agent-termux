@@ -11,7 +11,7 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/versions.env"
 
@@ -70,7 +70,9 @@ if [ ! -x "tools/patchelf" ]; then
     mkdir -p tools
     python3 -m pip download --no-deps -d tools "patchelf==$PATCHELF_PYPI_VERSION" 2>/dev/null || \
         pip download --no-deps -d tools "patchelf==$PATCHELF_PYPI_VERSION"
-    (cd tools && unzip -o -q patchelf-*.whl '*/patchelf' && mv */patchelf . && chmod +x patchelf)
+    (cd tools && unzip -o -q patchelf-*.whl '*/patchelf' \
+        && mv patchelf-*.data/scripts/patchelf . && rm -rf patchelf-*.data \
+        && chmod +x patchelf)
 fi
 ./tools/patchelf --version
 

@@ -19,6 +19,10 @@ TC="$HERMES_TC"
 PY="$HERMES_TERMUX_PY"
 
 export PATH="$HERMES_CARGO_HOME/bin:$PATH"
+# rustup honors CARGO_HOME/RUSTUP_HOME for where it installs; without these
+# it lands in ~/.cargo while every script looks in $HERMES_CARGO_HOME.
+export CARGO_HOME="$HERMES_CARGO_HOME"
+export RUSTUP_HOME="$HERMES_CARGO_HOME"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TC/bin/aarch64-linux-android24-clang"
 export CC_aarch64_linux_android="$TC/bin/aarch64-linux-android24-clang"
 export CXX_aarch64_linux_android="$TC/bin/aarch64-linux-android24-clang++"

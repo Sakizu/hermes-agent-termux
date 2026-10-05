@@ -24,7 +24,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$REPO_ROOT/versions.env"
 
 REF=""
-WORK="$REPO_ROOT/.build-work"
+WORK="${HERMES_WORK:-$REPO_ROOT/.build-work}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --ref)  REF="${2:?--ref needs a value}"; shift 2 ;;
