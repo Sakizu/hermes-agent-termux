@@ -65,10 +65,15 @@ fetch_sdist() { # $1=url $2=sha256 $3=dest
 }
 
 # top dir of a tarball, validated: tar failures must abort here, not
-# produce a bogus srcdir that breaks confusingly much later
+# produce a bogus srcdir that breaks confusingly much later.
+# NB: no `| head -1` pipe here — under `set -o pipefail` tar exits 141
+# (SIGPIPE) when head closes the pipe, which would false-positive.
 tarball_topdir() { # $1=tarball -> prints top dir name
-    local top
-    top="$(tar -tzf "$1" | head -1)" || { echo "tarball_topdir: cannot list $1" >&2; return 1; }
+    local listing
+    if ! listing="$(tar -tzf "$1" 2>/dev/null)"; then
+        echo "tarball_topdir: cannot list $1" >&2; return 1
+    fi
+    local top="${listing%%$'\n'*}"
     top="${top#./}"
     top="${top%%/*}"
     [ -n "$top" ] || { echo "tarball_topdir: empty top dir in $1" >&2; return 1; }
