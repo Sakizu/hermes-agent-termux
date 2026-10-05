@@ -34,11 +34,12 @@ permissions:
 
 env:
   UPSTREAM_REPO: NousResearch/hermes-agent
-  HERMES_WORK: ${{ runner.temp }}/hermes-work
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HERMES_WORK: ${{ runner.temp }}/hermes-work
     steps:
       - name: Check out this repo
         uses: actions/checkout@v4
