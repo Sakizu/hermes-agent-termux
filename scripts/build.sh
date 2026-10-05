@@ -43,18 +43,37 @@ if [ -z "$REF" ]; then
     echo "build.sh: no --ref given; using latest upstream release: $REF"
 fi
 
-# --- fresh upstream checkout at the ref ---
+# --- upstream checkout at the ref (reused when already at the ref) ---
 mkdir -p "$WORK"
 HERMES_WORK="$(cd "$WORK" && pwd)"   # absolute, no matter how --work was given
 SRC="$HERMES_WORK/upstream"
-rm -rf "$SRC"
-if [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then
-    # raw commit: tags can't address it, so clone fully then check out
-    git clone -q "https://github.com/${UPSTREAM_REPO}.git" "$SRC"
-    git -C "$SRC" checkout -q "$REF"
-else
-    git clone -q --depth 1 --branch "$REF" \
-        "https://github.com/${UPSTREAM_REPO}.git" "$SRC"
+need_fetch=1
+if [ -d "$SRC/.git" ]; then
+    head_sha="$(git -C "$SRC" rev-parse -q --verify HEAD 2>/dev/null || true)"
+    if [ -n "$head_sha" ]; then
+        if [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then
+            [ "$head_sha" = "$REF" ] && need_fetch=0
+        else
+            tag_sha="$(git ls-remote -q "https://github.com/${UPSTREAM_REPO}.git" "refs/tags/$REF" | cut -f1)"
+            [ -n "$tag_sha" ] && [ "$head_sha" = "$tag_sha" ] && need_fetch=0
+        fi
+        [ "$need_fetch" = 0 ] && echo "build.sh: reusing existing checkout at $REF"
+    fi
+fi
+if [ "$need_fetch" = 1 ]; then
+    rm -rf "$SRC"
+    mkdir -p "$SRC"
+    if [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then
+        # raw commit: fetch just that commit (shallow); a full clone is
+        # ~1 GB and mostly history we never read
+        git init -q "$SRC"
+        git -C "$SRC" fetch -q --depth 1 \
+            "https://github.com/${UPSTREAM_REPO}.git" "$REF"
+        git -C "$SRC" checkout -q FETCH_HEAD
+    else
+        git clone -q --depth 1 --branch "$REF" \
+            "https://github.com/${UPSTREAM_REPO}.git" "$SRC"
+    fi
 fi
 ACTUAL_REF="$(git -C "$SRC" rev-parse HEAD)"
 echo "build.sh: upstream $UPSTREAM_REPO @ $ACTUAL_REF (ref: $REF)"
