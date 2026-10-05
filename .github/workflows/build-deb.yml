@@ -135,6 +135,25 @@ jobs:
           echo "release_title=$rtitle" >> "$GITHUB_OUTPUT"
           echo "Release tag: $rtag / deb version: $debver / title: $rtitle"
 
+      - name: Cache toolchain (NDK, Termux libs)
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/hermes-work/toolchain
+          # NDK version pinned; script hash catches toolchain changes.
+          key: hermes-toolchain-ndk-r27c-${{ hashFiles('scripts/00-toolchain.sh', 'scripts/lib/build_env.sh') }}
+
+      - name: Cache cargo (registry + target dir)
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/hermes-work/cargo-home
+            ${{ runner.temp }}/hermes-work/cargo-target
+          # Upstream ref MUST be in the key: different commit = different sources.
+          # Patches/scripts hash catches our own build changes.
+          key: hermes-cargo-${{ steps.ref.outputs.ref }}-${{ hashFiles('patches/**', 'scripts/11-wheels-rust.sh', 'scripts/lib/env-rust.sh') }}
+
       - name: Build the .deb
         if: steps.skip.outputs.skip != 'true'
         env:
