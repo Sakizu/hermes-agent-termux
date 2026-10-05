@@ -10,26 +10,27 @@ the Hermes Agent CLI, TUI, and messaging gateway for Termux on Android (aarch64)
 
 ## Install
 
-Download the latest `.deb` from the
-[releases page](https://github.com/Sakizu/hermes-agent-termux/releases), then in Termux:
+In Termux:
 
 ```sh
-apt update
-apt install ./hermes-agent_<version>_aarch64.deb
+curl -sSL https://raw.githubusercontent.com/Sakizu/hermes-agent-termux/main/install.sh | sh
 ```
 
-Use `apt install`, not `dpkg -i`, so dependencies install automatically.
-Then verify:
+This installs the dependencies, downloads the latest `.deb` from the
+[releases page](https://github.com/Sakizu/hermes-agent-termux/releases),
+installs it, and verifies with `hermes --version`.
+
+Prefer to do it manually? Download the `.deb` from the releases page, then:
 
 ```sh
-hermes --version
-hermes doctor
+sh install.sh --deb ./hermes-agent_<version>_aarch64.deb
 ```
 
 ## Update
 
-Install the newer `.deb` the same way — `apt` upgrades it in place.
-(A signed APT repo is planned so updates will arrive via plain `apt upgrade`.)
+Re-run the installer — it pulls the latest release and `apt` upgrades it in
+place. (A signed APT repo is planned so updates will arrive via plain
+`apt upgrade`.)
 
 ## Uninstall
 
