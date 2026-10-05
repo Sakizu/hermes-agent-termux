@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import http.client
 import os
+import shutil
+import subprocess
 import sys
 import time
 import urllib.request
@@ -21,9 +23,39 @@ POOL_BASE = "https://packages.termux.dev/apt/termux-main/"
 FETCH_TRIES = 5
 
 
-def fetch_text(url: str) -> str:
-    """Fetch a URL, retrying transient network failures (the sandbox egress
-    proxy occasionally truncates long responses)."""
+def _fetch_curl(url: str) -> str | None:
+    """Fetch via curl (robust against the flaky egress proxy; the NDK
+    download in 00-toolchain.sh already proves curl works here)."""
+    curl = shutil.which("curl")
+    if not curl:
+        return None
+    p = subprocess.run(
+        [
+            curl,
+            "-sSL",
+            "--retry",
+            str(FETCH_TRIES),
+            "--retry-all-errors",
+            "--retry-delay",
+            "2",
+            "--max-time",
+            "180",
+            url,
+        ],
+        capture_output=True,
+    )
+    if p.returncode == 0 and p.stdout:
+        return p.stdout.decode()
+    print(
+        f"termux_deb.py: curl failed (rc={p.returncode}): "
+        f"{p.stderr.decode()[:200].strip()}",
+        file=sys.stderr,
+    )
+    return None
+
+
+def _fetch_urllib(url: str) -> str:
+    """Fallback: urllib with retries on transient failures."""
     last: Exception | None = None
     for attempt in range(1, FETCH_TRIES + 1):
         try:
@@ -38,7 +70,7 @@ def fetch_text(url: str) -> str:
         ) as e:  # OSError covers urllib.error.URLError
             last = e
             print(
-                f"termux_deb.py: fetch attempt {attempt}/{FETCH_TRIES} failed "
+                f"termux_deb.py: urllib attempt {attempt}/{FETCH_TRIES} failed "
                 f"({e}); retrying",
                 file=sys.stderr,
             )
@@ -46,6 +78,10 @@ def fetch_text(url: str) -> str:
     raise SystemExit(
         f"termux_deb.py: failed to fetch {url} after {FETCH_TRIES} tries: {last}"
     )
+
+
+def fetch_text(url: str) -> str:
+    return _fetch_curl(url) or _fetch_urllib(url)
 
 
 def main() -> int:
