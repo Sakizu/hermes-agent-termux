@@ -101,11 +101,18 @@ get() { # $1=name $2=field
 
 for name in jiter pydantic-core watchfiles firecrawl-anydoc cryptography; do
     ver="$(get "$name" version)"; url="$(get "$name" url)"; sha="$(get "$name" sha256)"
-    srcdir="$R_DIR/src/${name}-${ver}"
+    tarball="$R_DIR/src/$(basename "$url")"
+    # the sdist top dir may normalize -/_ differently than $name
+    # (e.g. pydantic_core-2.46.4.tar.gz extracts to pydantic_core-2.46.4/)
+    if [ -f "$tarball" ]; then
+        srcdir="$R_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
+    else
+        srcdir="$R_DIR/src/${name}-${ver}"
+    fi
     if [ ! -d "$srcdir" ]; then
-        tarball="$R_DIR/src/$(basename "$url")"
         fetch_sdist "$url" "$sha" "$tarball"
         tar --no-same-owner -xzf "$tarball" -C "$R_DIR/src"
+        srcdir="$R_DIR/src/$(tar -tzf "$tarball" | head -1 | cut -d/ -f1)"
     fi
     if [ "$name" = "cryptography" ]; then setup_cryptography_env; fi
     (cd "$srcdir" && maturin build --release --target aarch64-linux-android \
