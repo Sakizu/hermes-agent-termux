@@ -170,6 +170,19 @@ jobs:
             cat "$deb.sha256"
           done
 
+      - name: Create release commit
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "${{ github.workspace }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git pull --rebase origin main || true
+          git commit --allow-empty -m "Release ${{ steps.ver.outputs.release_tag }}"
+          git push origin main
+
       - name: Create GitHub release
         if: steps.skip.outputs.skip != 'true'
         env:
