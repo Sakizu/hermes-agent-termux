@@ -1,0 +1,20 @@
+--- a/hermes_state_dbfile.py
++++ b/hermes_state_dbfile.py
+@@ -370,7 +370,7 @@
+     try:
+         if sys.platform == "darwin":
+             holders = _iter_darwin_sidecar_holders(db_path)
+-        elif sys.platform.startswith("linux"):
++        elif sys.platform.startswith(("linux", "android")):
+             watched = _watched_sqlite_sidecar_paths(db_path)
+             for pid, target, fd_path in _iter_proc_fd_targets():
+                 canonical = canonical_sqlite_path(target)
+@@ -827,7 +827,7 @@
+             st = os.stat(target)
+             identity = (st.st_dev, st.st_ino)
+             return len({pid for pid, _fd, _path, ident in _iter_darwin_fd_targets() if ident == identity})
+-        if not sys.platform.startswith("linux"):
++        if not sys.platform.startswith(("linux", "android")):
+             return None
+         return len({pid for pid, link, _fd_path in _iter_proc_fd_targets() if link == target})
+     except Exception:

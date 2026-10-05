@@ -1,0 +1,20 @@
+--- a/gateway/agent_cache_pressure.py
++++ b/gateway/agent_cache_pressure.py
+@@ -71,7 +71,7 @@
+     Own cgroup first (where a systemd unit's ``MemoryHigh=``/``MemoryMax=`` lands —
+     root reads ``max`` there), then root for container-style limits.
+     """
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return None
+     try:
+         from gateway.cgroup_cleanup import _own_cgroup_path
+@@ -149,7 +149,7 @@
+     Only for a *capped* cgroup: an uncapped one (a plain login session) is the whole user
+     slice, and its budget is total RAM — self RSS stays the right scope there.
+     """
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return None
+     try:
+         from gateway.cgroup_cleanup import _own_cgroup_path

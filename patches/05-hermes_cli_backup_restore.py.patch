@@ -1,0 +1,11 @@
+--- a/hermes_cli/backup_restore.py
++++ b/hermes_cli/backup_restore.py
+@@ -36,7 +36,7 @@
+     ``None`` when the scan is unavailable (non-Linux, or /proc unreadable);
+     callers must treat ``None`` as "unknown", not as "no holders".
+     """
+-    if not sys.platform.startswith("linux"):
++    if not sys.platform.startswith(("linux", "android")):
+         return None
+ 
+     def _canonical(path: str) -> str:

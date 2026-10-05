@@ -1,0 +1,14 @@
+--- a/hermes_cli/local_runtime/processes.py
++++ b/hermes_cli/local_runtime/processes.py
+@@ -9,7 +9,10 @@
+ import sys
+ import threading
+ 
+-import psutil
++try:  # Hard dependency, but tolerate scaffold-phase imports before pip install.
++    import psutil
++except ImportError:  # pragma: no cover - stripped/scaffold installs only
++    psutil = None  # type: ignore[assignment]
+ 
+ 
+ class _BasicLimits(ctypes.Structure):

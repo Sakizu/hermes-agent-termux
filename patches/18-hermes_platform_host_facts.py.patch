@@ -1,0 +1,11 @@
+--- a/hermes_platform/host/facts.py
++++ b/hermes_platform/host/facts.py
+@@ -317,7 +317,7 @@
+             return _windows_interactive_session()
+         except (AttributeError, OSError, TypeError, ValueError):
+             return False
+-    if sys.platform.startswith("linux"):
++    if sys.platform.startswith(("linux", "android")):
+         session_id = _read_text("/proc/self/sessionid", 64).strip()
+         return bool(session_id and session_id != "4294967295" and os.path.isdir(f"/run/user/{os.getuid()}"))
+     return True

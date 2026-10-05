@@ -1,0 +1,128 @@
+name: build-deb
+
+# Builds the Termux-native hermes-agent .deb for one upstream ref and
+# publishes it as a GitHub release.
+#
+# Triggers:
+#   - manually (Actions -> build-deb -> Run workflow), optional `ref` input:
+#     an upstream tag like v2026.9.24 or a 40-hex commit. Empty means the
+#     latest upstream release tag.
+#   - daily at 04:00 UTC; scheduled runs skip when the newest upstream tag
+#     already has a -termux release here.
+#
+# Secrets used: only the automatic GITHUB_TOKEN.
+#
+# Contract with scripts/build.sh (must exist in this repo):
+#   bash scripts/build.sh --ref <tag-or-commit>
+# The workflow exports DEB_VERSION (from scripts/deb_version.py) and
+# HERMES_WORK; build.sh is expected to honor DEB_VERSION for the .deb
+# filename, which 30-assemble.sh does:
+#   $HERMES_WORK/hermes-agent_${DEB_VERSION}_aarch64.deb
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream tag (e.g. v2026.9.24) or commit SHA. Empty = latest upstream release."
+        required: false
+        default: ""
+  schedule:
+    - cron: "0 4 * * *"
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: NousResearch/hermes-agent
+  HERMES_WORK: ${{ runner.temp }}/hermes-work
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl unzip dpkg-dev git
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Resolve upstream ref
+        id: ref
+        run: |
+          if [ -n "${{ inputs.ref }}" ]; then
+            ref="${{ inputs.ref }}"
+          else
+            ref="$(curl -sSL "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Upstream ref: $ref"
+
+      - name: Skip if already built (scheduled runs)
+        id: skip
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref="${{ steps.ref.outputs.ref }}"
+          existing="$(gh api "repos/${{ github.repository }}/releases" --jq '.[].tag_name' 2>/dev/null || true)"
+          if printf '%s\n' "$existing" | grep -q "^${ref}-termux"; then
+            echo "already built: ${ref} already has a -termux release; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute deb version and release tag
+        id: ver
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref="${{ steps.ref.outputs.ref }}"
+          n=1
+          while gh release view "${ref}-termux${n}" --repo "${{ github.repository }}" >/dev/null 2>&1; do
+            n=$((n + 1))
+          done
+          rtag="${ref}-termux${n}"
+          debver="$(python3 scripts/deb_version.py "$ref" "$n")"
+          echo "release_tag=$rtag" >> "$GITHUB_OUTPUT"
+          echo "deb_version=$debver" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $rtag / deb version: $debver"
+
+      - name: Build the .deb
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          DEB_VERSION: ${{ steps.ver.outputs.deb_version }}
+        run: bash scripts/build.sh --ref "${{ steps.ref.outputs.ref }}"
+
+      - name: Upload .deb artifact
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-agent-deb
+          path: ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.ver.outputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "hermes-agent ${{ steps.ver.outputs.release_tag }}" \
+            --notes "Termux-native .deb for upstream ${{ steps.ref.outputs.ref }} (deb version ${{ steps.ver.outputs.deb_version }})." \
+            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb

@@ -1,0 +1,20 @@
+--- a/hermes_cli/mem_trim.py
++++ b/hermes_cli/mem_trim.py
+@@ -74,7 +74,7 @@
+ 
+ def _read_proc_status() -> str | None:
+     """Read Linux process status without making non-Linux callers special-case."""
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return None
+     try:
+         return Path("/proc/self/status").read_text(encoding="utf-8")
+@@ -125,7 +125,7 @@
+     if _probe_done:
+         return _malloc_trim
+     _probe_done = True
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return None
+     try:
+         if platform.libc_ver()[0].lower() != "glibc":

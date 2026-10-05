@@ -1,0 +1,11 @@
+--- a/hermes_cli/clipboard.py
++++ b/hermes_cli/clipboard.py
+@@ -84,7 +84,7 @@
+     ps_argv = [*_PS_FLAGS, "-Command", "Set-Clipboard -Value ([System.Text.Encoding]::UTF8"
+                f".GetString([System.Convert]::FromBase64String('{b64}')))"]
+     ps_kw, pipe = {"stdin": subprocess.DEVNULL}, {"input": data}
+-    linux = sys.platform not in ("darwin", "win32")
++    linux = sys.platform not in ("darwin", "win32", "android")
+     return [(argv, kw) for enabled, argv, kw in (
+         (sys.platform == "darwin", ["pbcopy"], pipe),
+         (sys.platform == "win32", ["powershell", *ps_argv], ps_kw),

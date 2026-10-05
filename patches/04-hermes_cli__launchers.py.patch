@@ -1,0 +1,21 @@
+--- a/hermes_cli/_launchers.py
++++ b/hermes_cli/_launchers.py
+@@ -14,6 +14,7 @@
+ import json
+ import os
+ import shlex
++import shutil
+ import sys
+ from pathlib import Path
+ 
+@@ -324,7 +325,9 @@
+ 
+ 
+ def _write_shell(target: Path, command: list[str]) -> Path | None:
+-    body = f'#!/bin/sh\nexec {shlex.join(command)} "$@"\n'
++    # Termux has no /bin/sh: resolve the platform sh (Termux's $PREFIX/bin/sh)
++    # at generation time, falling back to /bin/sh elsewhere.
++    body = f'#!{shutil.which("sh") or "/bin/sh"}\nexec {shlex.join(command)} "$@"\n'
+     try:
+         if not target.is_symlink() and target.read_bytes() == body.encode("utf-8"):
+             if os.access(target, os.X_OK):

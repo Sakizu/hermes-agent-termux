@@ -1,0 +1,25 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Termux-native launcher for @PROG@ (minted at build time; see build notes).
+set -eu
+self="$0"
+while [ -L "$self" ]; do
+    target="$(readlink "$self")"
+    case "$target" in
+        /*) self="$target" ;;
+        *) self="$(dirname "$self")/$target" ;;
+    esac
+done
+root="$(cd "$(dirname "$self")/.." && pwd)"
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+PYTHON="$PREFIX/bin/python"
+REPO="$root/app"
+SITE="$root/site"
+[ -x "$PYTHON" ] || { printf '%s\n' 'hermes-agent: Termux python not found; run: pkg install python' >&2; exit 2; }
+unset PYTHONHOME
+export PYTHONPATH="$REPO:$SITE"
+export HERMES_SITE="$SITE"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+export HERMES_NODE="${HERMES_NODE:-$PREFIX/bin/node}"
+export HERMES_FTS5_CJK_SO="${HERMES_FTS5_CJK_SO:-$root/lib/libfts5_cjk.so}"
+export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-${XDG_CACHE_HOME:-$HOME/.cache}/hermes-pycache}"
+exec "$PYTHON" -P -c 'import os, site, sys; sys.argv[0]='"'"'@PROG@'"'"'; site.addsitedir(os.environ['"'"'HERMES_SITE'"'"']); from @ENTRY_IMPORT@ import main; sys.exit(main())' "$@"

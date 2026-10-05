@@ -1,0 +1,11 @@
+--- a/hermes_cli/_early_recovery.py
++++ b/hermes_cli/_early_recovery.py
+@@ -117,7 +117,7 @@
+     (#77259, #120635, #125932). Best-effort and stdlib-only: on any failure the
+     answer is ``None`` and callers keep their signal-0 verdict.
+     """
+-    if sys.platform == "linux":
++    if sys.platform in ("linux", "android"):
+         try:
+             with open(f"/proc/{pid}/stat", "rb") as fh:
+                 stat = fh.read()

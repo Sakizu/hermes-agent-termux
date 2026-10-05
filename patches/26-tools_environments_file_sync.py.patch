@@ -1,0 +1,23 @@
+--- a/tools/environments/file_sync.py
++++ b/tools/environments/file_sync.py
+@@ -24,7 +24,10 @@
+ from pathlib import Path
+ from typing import Callable
+ 
+-import psutil
++try:  # Hard dependency, but tolerate scaffold-phase imports before pip install.
++    import psutil
++except ImportError:  # pragma: no cover - stripped/scaffold installs only
++    psutil = None  # type: ignore[assignment]
+ 
+ from hermes_constants import get_hermes_home
+ from tools.environments.base import _file_mtime_key
+@@ -89,6 +92,8 @@
+     pid_part = name[len(_SYNC_BACK_TEMP_PREFIX):].split("-", 1)[0]
+     if not pid_part.isdigit():
+         return True
++    if psutil is None:  # unknown liveness without psutil: treat as alive (age cutoff still applies)
++        return True
+     return psutil.pid_exists(int(pid_part))
+ 
+ 

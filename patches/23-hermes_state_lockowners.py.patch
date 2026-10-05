@@ -1,0 +1,11 @@
+--- a/hermes_state_lockowners.py
++++ b/hermes_state_lockowners.py
+@@ -83,7 +83,7 @@
+ 
+     Empty when nothing is held or the platform has no ``/proc/locks``.
+     """
+-    if not sys.platform.startswith("linux"):
++    if not sys.platform.startswith(("linux", "android")):
+         return []
+     base = os.path.realpath(os.fspath(db_path))
+     inodes: Dict[Tuple[int, int], str] = {}

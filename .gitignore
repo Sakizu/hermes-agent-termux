@@ -1,0 +1,4 @@
+.build-work/
+build-work/
+*.deb
+__pycache__/

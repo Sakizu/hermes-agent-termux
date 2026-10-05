@@ -1,0 +1,11 @@
+--- a/hermes_state_holders.py
++++ b/hermes_state_holders.py
+@@ -461,7 +461,7 @@
+         if candidate == db_path_str:
+             db_dev = stat_result.st_dev
+ 
+-    if sys.platform.startswith("linux"):
++    if sys.platform.startswith(("linux", "android")):
+         try:
+             own_pid = os.getpid()
+             for pid_str in os.listdir("/proc"):

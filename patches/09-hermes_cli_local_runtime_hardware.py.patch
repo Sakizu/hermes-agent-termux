@@ -1,0 +1,11 @@
+--- a/hermes_cli/local_runtime/hardware.py
++++ b/hermes_cli/local_runtime/hardware.py
+@@ -150,7 +150,7 @@
+                 if pages > 0:
+                     avail = pages * page
+             return total, avail
+-        if sys.platform.startswith("linux"):
++        if sys.platform.startswith(("linux", "android")):
+             meminfo = _linux_meminfo_text()
+             if meminfo is not None:
+                 linux_ram = _linux_ram_from_meminfo(meminfo)

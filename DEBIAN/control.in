@@ -1,0 +1,10 @@
+Package: hermes-agent
+Version: @VERSION@
+Architecture: aarch64
+Maintainer: Termux-native port (unofficial; upstream: Nous Research, MIT)
+Description: Hermes Agent CLI for Termux (Termux-native port)
+ Self-improving AI agent: CLI, TUI, and messaging gateway.
+ This is a Termux-native .deb port of NousResearch/hermes-agent.
+ It uses Termux's python/nodejs; no vendored runtimes.
+Depends: python (>= 3.14), python-pillow, nodejs, bash, libffi, libheif, openssl
+Installed-Size: @SIZE@

@@ -1,0 +1,11 @@
+--- a/hermes_state_pidns.py
++++ b/hermes_state_pidns.py
+@@ -50,7 +50,7 @@
+ 
+ 
+ def _resolve_local_pid_namespace() -> LocalPidNamespace:
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return _UNSUPPORTED
+     try:
+         link = os.readlink("/proc/self/ns/pid")

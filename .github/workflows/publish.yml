@@ -1,0 +1,151 @@
+# publish.yml — publish a released .deb to the APT repository on Cloudflare R2.
+#
+# REQUIRED SECRETS (repo Settings -> Secrets and variables -> Actions).
+# The workflow fails fast with a clear message if any is missing.
+#   GPG_PRIVATE_KEY       ASCII-armored private key used to sign the repo metadata
+#   GPG_PASSPHRASE        passphrase for that key (may be empty if the key has none)
+#   R2_ACCOUNT_ID         Cloudflare account ID
+#   R2_ACCESS_KEY_ID      R2 API token access key ID
+#   R2_SECRET_ACCESS_KEY  R2 API token secret access key
+#   R2_BUCKET             R2 bucket that hosts the APT repo
+#   R2_PUBLIC_URL         public base URL of the bucket (custom domain or r2.dev URL)
+#
+# This produces the phone-side repo line:
+#   deb [signed-by=/usr/share/keyrings/hermes-agent-termux.gpg] https://<R2_PUBLIC_URL> stable main
+# The public key is published at the repo root as hermes-agent-termux.gpg.
+#
+# Layout generated under the bucket root:
+#   hermes-agent-termux.gpg                      (public signing key)
+#   debs/hermes-agent_<ver>_aarch64.deb          (accumulates across releases)
+#   dists/stable/main/binary-aarch64/Packages{,.gz}
+#   dists/stable/{Release,InRelease}             (InRelease = clearsigned)
+#
+# Secrets used: only the ones listed above plus the automatic GITHUB_TOKEN.
+
+name: publish-apt
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: apt-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          missing=""
+          for v in GPG_PRIVATE_KEY R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET R2_PUBLIC_URL; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          # GPG_PASSPHRASE may legitimately be empty; require it to be *set* only.
+          if [ -z "${GPG_PASSPHRASE+x}" ]; then missing="$missing GPG_PASSPHRASE"; fi
+          if [ -n "$missing" ]; then
+            echo "publish.yml: missing required secrets:$missing" >&2
+            echo "Set them in repo Settings -> Secrets and variables -> Actions, then re-run." >&2
+            exit 1
+          fi
+          echo "all required secrets present"
+
+      - name: Install tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev gnupg
+          curl -sSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download the .deb from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dl
+          gh release download "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" --pattern '*.deb' --dir dl
+          ls dl/
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -eu
+          printf '%s' "$GPG_PRIVATE_KEY" > "$RUNNER_TEMP/signkey.asc"
+          gpg --batch --import "$RUNNER_TEMP/signkey.asc"
+          rm -f "$RUNNER_TEMP/signkey.asc"
+          gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}' > "$RUNNER_TEMP/keyid"
+          echo "signing key: $(cat "$RUNNER_TEMP/keyid")"
+
+      - name: Configure rclone for R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -eu
+          mkdir -p ~/.config/rclone
+          umask 077
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY_ID}
+          secret_access_key = ${R2_SECRET_ACCESS_KEY}
+          endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+          echo "rclone configured (credentials never printed)"
+
+      - name: Build the APT repo layout
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -eu
+          REPO="$RUNNER_TEMP/aptrepo"
+          mkdir -p "$REPO/debs" "$REPO/dists/stable/main/binary-aarch64"
+          # pull the existing pool so the index keeps older versions
+          rclone copy "r2:${R2_BUCKET}/debs" "$REPO/debs" 2>/dev/null \
+            || echo "no existing pool in R2 (first publish)"
+          cp dl/*.deb "$REPO/debs/"
+          (cd "$REPO" && dpkg-scanpackages --arch aarch64 debs /dev/null \
+            > dists/stable/main/binary-aarch64/Packages)
+          gzip -9kf "$REPO/dists/stable/main/binary-aarch64/Packages"
+          (cd "$REPO" && apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="hermes-agent-termux" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="aarch64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="Termux-native hermes-agent builds" \
+            release dists/stable > dists/stable/Release)
+          KEYID="$(cat "$RUNNER_TEMP/keyid")"
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEYID" \
+            --clearsign -o "$REPO/dists/stable/InRelease" "$REPO/dists/stable/Release"
+          gpg --batch --yes --armor --export "$KEYID" > "$REPO/hermes-agent-termux.gpg"
+          echo "HERMES_REPO_DIR=$REPO" >> "$GITHUB_ENV"
+          find "$REPO" -type f | sort
+
+      - name: Upload to R2
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: |
+          set -eu
+          rclone copy "$HERMES_REPO_DIR/" "r2:${R2_BUCKET}/"
+          echo "published to ${R2_PUBLIC_URL}"
+          echo "repo line:"
+          echo "deb [signed-by=/usr/share/keyrings/hermes-agent-termux.gpg] ${R2_PUBLIC_URL} stable main"

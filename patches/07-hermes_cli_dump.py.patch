@@ -1,0 +1,11 @@
+--- a/hermes_cli/dump.py
++++ b/hermes_cli/dump.py
+@@ -110,7 +110,7 @@
+             return f"running ({mode}{pid})"
+         return f"stopped ({snapshot.manager})"
+     except Exception:
+-        return "unknown" if sys.platform.startswith(("linux", "darwin")) else "N/A"
++        return "unknown" if sys.platform.startswith(("linux", "android", "darwin")) else "N/A"
+ 
+ 
+ def _count_skills(hermes_home: Path) -> int:

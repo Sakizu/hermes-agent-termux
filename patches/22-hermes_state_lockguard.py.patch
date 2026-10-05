@@ -1,0 +1,11 @@
+--- a/hermes_state_lockguard.py
++++ b/hermes_state_lockguard.py
+@@ -57,7 +57,7 @@
+         # CPython exports F_OFD_SETLK only from 3.12. The kernel ABI values are stable: 37 on every
+         # Linux arch (asm-generic/fcntl.h), 90 on XNU (bsd/sys/fcntl.h, documented in fcntl(2)).
+         _F_OFD_SETLK = getattr(
+-            fcntl, "F_OFD_SETLK", {"linux": 37, "darwin": 90}.get(sys.platform.rstrip("0123456789")))
++            fcntl, "F_OFD_SETLK", {"linux": 37, "android": 37, "darwin": 90}.get(sys.platform.rstrip("0123456789")))
+         _F_RDLCK, _F_UNLCK, _SEEK_SET = fcntl.F_RDLCK, fcntl.F_UNLCK, os.SEEK_SET
+         _F_SETLK = fcntl.F_SETLK
+         # The constants alone do not make the guard usable: _ofd_lock() calls fcntl.fcntl(), so a

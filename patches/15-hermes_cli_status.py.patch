@@ -1,0 +1,12 @@
+--- a/hermes_cli/status.py
++++ b/hermes_cli/status.py
+@@ -241,7 +241,8 @@
+         elif snapshot.service_installed and not snapshot.service_running:
+             _kv("Service:", "installed but stopped")
+     except Exception:
+-        platform = "linux" if sys.platform.startswith("linux") else sys.platform
++        platform = ("termux" if sys.platform == "android"
++                    else "linux" if sys.platform.startswith("linux") else sys.platform)
+         status_text, manager = _GATEWAY_FALLBACK.get(platform, ("N/A", "(not supported on this platform)"))
+         _kv("Status:", color(status_text, Colors.DIM))
+         _kv("Manager:", manager)

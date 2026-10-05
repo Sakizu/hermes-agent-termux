@@ -1,0 +1,11 @@
+--- a/hermes_state.py
++++ b/hermes_state.py
+@@ -1242,7 +1242,7 @@
+             )
+         if not self._wal_active:  # no sidecar generation to lose; keep /proc off the hot path
+             return False
+-        if sys.platform.startswith("linux"):
++        if sys.platform.startswith(("linux", "android")):
+             watched = _watched_sqlite_sidecar_paths(self.db_path)
+             try:
+                 for target, fd_path in _proc_fd_targets(os.getpid()):

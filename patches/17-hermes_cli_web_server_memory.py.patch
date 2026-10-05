@@ -1,0 +1,19 @@
+--- a/hermes_cli/web_server_memory.py
++++ b/hermes_cli/web_server_memory.py
+@@ -5,6 +5,7 @@
+ import json
+ import os
+ import shlex
++import shutil
+ import subprocess
+ from fastapi import HTTPException
+ from pathlib import Path
+@@ -107,7 +108,7 @@
+     return subprocess.run(
+         command,
+         shell=shell,
+-        executable="/bin/bash" if shell else None,
++        executable=shutil.which("bash") if shell else None,
+         env=_memory_provider_setup_env(),
+         capture_output=True,
+         text=True,

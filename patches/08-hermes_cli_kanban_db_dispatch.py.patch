@@ -1,0 +1,11 @@
+--- a/hermes_cli/kanban_db_dispatch.py
++++ b/hermes_cli/kanban_db_dispatch.py
+@@ -326,7 +326,7 @@
+     from gateway.status import _pid_exists
+     if not _pid_exists(int(pid)):
+         return False
+-    if sys.platform == "linux":
++    if sys.platform in ("linux", "android"):
+         try:
+             with open(f"/proc/{int(pid)}/status", "r", encoding="utf-8") as f:
+                 for line in f:

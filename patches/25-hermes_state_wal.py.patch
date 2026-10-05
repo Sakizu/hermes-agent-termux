@@ -1,0 +1,11 @@
+--- a/hermes_state_wal.py
++++ b/hermes_state_wal.py
+@@ -215,7 +215,7 @@
+ 
+ def _detect_cross_vm_fs(directory: str, mountinfo_path: str = "/proc/self/mountinfo") -> bool:
+     """True only when ``directory`` sits on a virtiofs/9p mount per ``mountinfo_path``."""
+-    if sys.platform != "linux":
++    if sys.platform not in ("linux", "android"):
+         return False
+     return _mountinfo_fstype(directory, mountinfo_path) in _CROSS_VM_FSTYPES
+ 
