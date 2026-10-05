@@ -102,7 +102,7 @@ for name in jiter pydantic-core watchfiles firecrawl-anydoc cryptography; do
     if [ ! -d "$srcdir" ]; then
         tarball="$R_DIR/src/$(basename "$url")"
         fetch_sdist "$url" "$sha" "$tarball"
-        tar -xzf "$tarball" -C "$R_DIR/src"
+        tar --no-same-owner -xzf "$tarball" -C "$R_DIR/src"
     fi
     if [ "$name" = "cryptography" ]; then setup_cryptography_env; fi
     (cd "$srcdir" && maturin build --release --target aarch64-linux-android \

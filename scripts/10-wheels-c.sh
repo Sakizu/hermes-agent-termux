@@ -65,7 +65,7 @@ build_one() { # $1=name $2=version $3=url $4=sha256 $5=extra ("abi3"|"")
     if [ ! -d "$srcdir" ]; then
         local tarball="$C_DIR/src/$(basename "$url")"
         fetch_sdist "$url" "$sha" "$tarball"
-        tar -xzf "$tarball" -C "$C_DIR/src"
+        tar --no-same-owner -xzf "$tarball" -C "$C_DIR/src"
     fi
     cd "$srcdir"
 

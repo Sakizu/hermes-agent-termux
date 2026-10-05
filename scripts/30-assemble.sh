@@ -36,7 +36,7 @@ mkdir -p "$SITE" "$APP" "$STAGE/DEBIAN"
 INERT="tests tests-js website evals .github nix docker apps ui-tui web scripts"
 git -C "$HERMES_SRC" archive --format=tar "$UPSTREAM_REF" -- \
     $(for d in $INERT; do printf ':(exclude)%s ' "$d"; done) \
-    | tar -x -C "$APP"
+    | tar --no-same-owner -x -C "$APP"
 test -f "$APP/pyproject.toml" || { echo "snapshot failed: no pyproject.toml"; exit 1; }
 # the TUI bundle was built from the full tree before exclusion; stage it now
 cp -r "$HERMES_WORK/tui/hermes_cli/tui_dist" "$APP/hermes_cli/tui_dist"
