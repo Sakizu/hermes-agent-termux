@@ -211,12 +211,13 @@ build_psutil() { # $1=version $2=git-url $3=rev
     shopt -u nullglob
     [ "${#buildlibs[@]}" -eq 1 ] || { echo "build_psutil: expected 1 build/lib.*, found ${#buildlibs[@]}" >&2; exit 1; }
     local buildlib="${buildlibs[0]}"
+    # drop stale psutil wheels BEFORE building, so re-runs never bundle
+    # old versions (and never delete the wheel we are about to build)
+    rm -f "$WHEELS_OUT"/psutil-*.whl
     "$VPY" "$LIB/assemble_wheel.py" --src "$srcdir" --build-lib "$buildlib" \
         --dist psutil --version "$ver" --out "$WHEELS_OUT" \
         --abi3-tag "cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a"
     local whl="$WHEELS_OUT/psutil-${ver}-cp38-abi3-android_${HERMES_ANDROID_API}_arm64_v8a.whl"
-    # drop stale psutil wheels so re-runs never bundle old versions
-    rm -f "$WHEELS_OUT"/psutil-*.whl
     HERMES_WHL="$whl" HERMES_SRC_DIR="$HERMES_SRC" HERMES_PYLIB="$HERMES_TERMUX_LIB/libpython${HERMES_PYVER}.so" \
     PATH="$HERMES_TOOLS:$PATH" "$VPY" <<'EOF'
 import os, sys
