@@ -94,9 +94,9 @@ if [ -z "${DEB_VERSION:-}" ]; then
             2>/dev/null || true)"
     fi
     if [ -n "$BASE_VER" ]; then
-        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}" "$BASE_VER")"
+        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "$BASE_VER")"
     else
-        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}")"
+        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF")"
     fi
 fi
 echo "build.sh: deb version $DEB_VERSION"
