@@ -1,36 +1,35 @@
 # hermes-agent-termux
 
-Unofficial Termux-native `.deb` port of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) —
-the Hermes Agent CLI, TUI, and messaging gateway for Termux on Android (aarch64).
+Unofficial Termux-native `.deb` port of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) — the Hermes Agent CLI, TUI, and messaging gateway for Termux on Android (aarch64).
+
+- Native `apt` package — no proot, no chroot; TUI bundled
+- 22 MB download, ~120 MB installed
+- Tracks upstream `1298c8e` (2026-09-24); 26 Android/Termux compatibility patches ([`patches/`](patches/))
 
 ## Requirements
 
-- Termux on Android 7+, aarch64
-- About 150 MB free space
+- [Termux](https://termux.dev/) from F-Droid, Android 7+, aarch64
+- ~150 MB free space
 
 ## Install
-
-In Termux:
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/Sakizu/hermes-agent-termux/main/install.sh | sh
 ```
 
-This installs the dependencies, downloads the latest `.deb` from the
-[releases page](https://github.com/Sakizu/hermes-agent-termux/releases),
-installs it, and verifies with `hermes --version`.
-
-Prefer to do it manually? Download the `.deb` from the releases page, then:
+Verify:
 
 ```sh
-sh install.sh --deb ./hermes-agent_<version>_aarch64.deb
+hermes --version
+hermes doctor
 ```
 
-## Update
+## What's different from upstream
 
-Re-run the installer — it pulls the latest release and `apt` upgrades it in
-place. (A signed APT repo is planned so updates will arrive via plain
-`apt upgrade`.)
+Excluded, deliberately:
+
+- **Matrix E2EE** — `python-olm` has no Android build path and libolm is archived with unresolved security issues. Matrix works without E2EE.
+- **Local faster-whisper STT** — CTranslate2 has no Android build path. Falls back to API STT (Groq/OpenAI), or `whisper.cpp` via `local_command`.
 
 ## Uninstall
 
@@ -38,8 +37,6 @@ place. (A signed APT repo is planned so updates will arrive via plain
 apt remove hermes-agent
 ```
 
-Your data in `~/.hermes` is kept.
+## Build from source
 
-## Building from source
-
-See [docs/BUILD.md](docs/BUILD.md).
+See [`docs/BUILD.md`](docs/BUILD.md).

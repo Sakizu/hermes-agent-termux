@@ -41,10 +41,14 @@ def deb_version_for_tag(tag: str, deb_revision: int = 1) -> str:
     return f"{base}~canary.{ts}-{deb_revision}"
 
 
-def deb_version_for_commit(commit: str) -> str:
+def deb_version_for_commit(commit: str, deb_revision: int = 1) -> str:
     if not _COMMIT_RE.match(commit):
         raise ValueError(f"not a 40-hex commit: {commit!r}")
-    return f"0.0.0+{commit[:7]}"
+    base = f"0.0.0+{commit[:7]}"
+    # Same convention as tags: -1 is the first packaging; -2, -3... for
+    # rebuilds of the same upstream commit (e.g. build-system changes like
+    # .pyc precompilation that don't change the upstream ref).
+    return base if deb_revision <= 1 else f"{base}-{deb_revision}"
 
 
 def main(argv: list[str]) -> int:
@@ -53,7 +57,7 @@ def main(argv: list[str]) -> int:
         return 2
     ref, rev = argv[1], int(argv[2]) if len(argv) == 3 else 1
     try:
-        print(deb_version_for_tag(ref, rev) if ref.startswith("v") else deb_version_for_commit(ref))
+        print(deb_version_for_tag(ref, rev) if ref.startswith("v") else deb_version_for_commit(ref, rev))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

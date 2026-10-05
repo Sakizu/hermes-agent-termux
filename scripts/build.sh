@@ -82,7 +82,7 @@ echo "build.sh: upstream $UPSTREAM_REPO @ $ACTUAL_REF (ref: $REF)"
 # A caller (e.g. CI) may pre-set DEB_VERSION to control the Debian revision;
 # otherwise derive it here (revision defaults to 1).
 if [ -z "${DEB_VERSION:-}" ]; then
-    DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF")"
+    DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}")"
 fi
 echo "build.sh: deb version $DEB_VERSION"
 
