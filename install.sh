@@ -78,9 +78,15 @@ EOF
     curl -fSL --retry 3 -o "$DEB" "$DEB_URL"
     if [ -n "$SHA_URL" ]; then
         echo "==> verifying sha256"
-        curl -fSL --retry 3 -o "$DEB.sha256" "$SHA_URL"
-        (cd "$TMPD" && sha256sum -c "$(basename "$DEB.sha256")") \
+        curl -fSL --retry 3 -o "$TMPD/SHA256SUM" "$SHA_URL"
+        # Compare hash values directly: the filename recorded inside the
+        # .sha256 file may not match the downloaded name (some hosts
+        # sanitize '+' -> '_' in asset filenames).
+        want="$(awk '{print $1; exit}' "$TMPD/SHA256SUM")"
+        got="$(sha256sum "$DEB" | awk '{print $1}')"
+        [ -n "$want" ] && [ "$want" = "$got" ] \
             || { echo "install.sh: sha256 mismatch — download may be corrupt" >&2; exit 1; }
+        echo "install.sh: sha256 OK"
     else
         echo "install.sh: warning: no .sha256 asset published for this release; skipping integrity check" >&2
     fi
