@@ -26,6 +26,9 @@ WHEELS_OUT="$HERMES_WORK/wheelhouse"
 mkdir -p "$R_DIR" "$WHEELS_OUT" "$R_DIR/src" "$R_DIR/dist"
 
 LIB="$SCRIPT_DIR/lib"
+# venv from the C track (10-wheels-c.sh runs first); has `packaging`
+# installed, which native_deps.py needs.
+VPY="$HERMES_WORK/wheels-c/venv/bin/python"
 export HERMES_TC="$TC_DIR/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64"
 export HERMES_TERMUX_PY="$TC_DIR/termux-py/data/data/com.termux/files/usr"
 export HERMES_CARGO_HOME="$HERMES_WORK/cargo-home"
@@ -91,7 +94,7 @@ setup_cryptography_env() {
 }
 
 # --- main -------------------------------------------------------------
-DEPS_JSON="$(python3 "$LIB/native_deps.py" "$HERMES_SRC/uv.lock")"
+DEPS_JSON="$("$VPY" "$LIB/native_deps.py" "$HERMES_SRC/uv.lock")"
 get() { # $1=name $2=field
     echo "$DEPS_JSON" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(p['$2'] for p in d if p['name']=='$1'))"
 }
