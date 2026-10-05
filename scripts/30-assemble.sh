@@ -137,7 +137,7 @@ INSTALLED_SIZE="$(du -sk "$STAGE/data" | cut -f1)"
 sed -e "s/@VERSION@/$DEB_VERSION/" -e "s/@SIZE@/$INSTALLED_SIZE/" \
     "$REPO_ROOT/DEBIAN/control.in" > "$STAGE/DEBIAN/control"
 cp "$REPO_ROOT/DEBIAN/postinst" "$REPO_ROOT/DEBIAN/prerm" "$STAGE/DEBIAN/"
-chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/prerm"
+chmod 755 "$STAGE/DEBIAN" "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/prerm"
 
 # --- 8. build + QA -------------------------------------------------------
 OUT="$HERMES_WORK/hermes-agent_${DEB_VERSION}_aarch64.deb"
