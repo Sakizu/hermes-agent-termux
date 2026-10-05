@@ -170,16 +170,6 @@ jobs:
             cat "$deb.sha256"
           done
 
-      - name: Upload .deb artifact
-        if: steps.skip.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hermes-agent-deb
-          path: |
-            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb
-            ${{ runner.temp }}/hermes-work/hermes-agent_*_aarch64.deb.sha256
-          if-no-files-found: error
-
       - name: Create GitHub release
         if: steps.skip.outputs.skip != 'true'
         env:
