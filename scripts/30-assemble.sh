@@ -88,6 +88,7 @@ echo "site/: $(ls "$SITE" | wc -l) top-level entries"
 # --- 4. libfts5_cjk.so (NDK clang; upstream native/fts5_cjk/build.sh) ---
 TC="$TC_DIR/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64"
 FTS="$APP/native/fts5_cjk"
+mkdir -p "$STAGE/data/data/com.termux/files/usr/lib/hermes-agent/lib"
 "$TC/bin/aarch64-linux-android24-clang" -shared -fPIC -O2 -Wall \
     -I"$FTS/vendor" "$FTS/fts5_cjk.c" \
     -o "$STAGE/data/data/com.termux/files/usr/lib/hermes-agent/lib/libfts5_cjk.so"
