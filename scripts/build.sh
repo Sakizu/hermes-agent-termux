@@ -80,9 +80,24 @@ echo "build.sh: upstream $UPSTREAM_REPO @ $ACTUAL_REF (ref: $REF)"
 
 # --- deb version follows upstream (tags) or the commit (untagged) ---
 # A caller (e.g. CI) may pre-set DEB_VERSION to control the Debian revision;
-# otherwise derive it here (revision defaults to 1).
+# otherwise derive it here (revision defaults to 1). For untagged commits
+# the base version is the latest upstream release semver (e.g. 0.21.5),
+# so `hermes --version` shows something real instead of 0.0.0.
 if [ -z "${DEB_VERSION:-}" ]; then
-    DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}")"
+    BASE_VER=""
+    if [[ ! "$REF" =~ ^v ]]; then
+        # Latest upstream release semver, e.g. 0.21.5 from
+        # "Hermes Agent v0.21.5 (v2026.9.24)". Empty on failure (fallback).
+        BASE_VER="$(curl -sSL --retry 3 \
+            "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" \
+            | python3 -c "import json,sys; print([p.lstrip('v') for p in json.load(sys.stdin)['name'].split() if p.startswith('v') and p[1:2].isdigit()][0])" \
+            2>/dev/null || true)"
+    fi
+    if [ -n "$BASE_VER" ]; then
+        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}" "$BASE_VER")"
+    else
+        DEB_VERSION="$(python3 "$SCRIPT_DIR/deb_version.py" "$REF" "${DEB_REVISION:-1}")"
+    fi
 fi
 echo "build.sh: deb version $DEB_VERSION"
 

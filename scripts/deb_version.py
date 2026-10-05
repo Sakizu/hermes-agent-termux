@@ -8,7 +8,10 @@ upstream regex rejects (it caps the major at 3 digits).
 Mapping:
     v2026.9.24                          -> 2026.9.24-1
     v2026.9.24+canary.20261005T120000Z  -> 2026.9.24~canary.20261005T120000Z-1
-    <40-hex commit> (untagged build)    -> 0.0.0+<short7>
+    <40-hex commit> (untagged build)    -> <base-version>+<short7>
+                                          (base-version = latest upstream
+                                          release semver, e.g. 0.21.5;
+                                          falls back to 0.0.0 when unknown)
 
 The ``~`` ranks a canary below the corresponding stable in dpkg's version
 ordering. Debian revision ``-1`` is our packaging revision; bump to -2, -3…
@@ -41,10 +44,14 @@ def deb_version_for_tag(tag: str, deb_revision: int = 1) -> str:
     return f"{base}~canary.{ts}-{deb_revision}"
 
 
-def deb_version_for_commit(commit: str, deb_revision: int = 1) -> str:
+def deb_version_for_commit(commit: str, deb_revision: int = 1,
+                         base_version: str = "0.0.0") -> str:
     if not _COMMIT_RE.match(commit):
         raise ValueError(f"not a 40-hex commit: {commit!r}")
-    base = f"0.0.0+{commit[:7]}"
+    # base_version is the latest upstream release semver (e.g. 0.21.5 from
+    # "Hermes Agent v0.21.5 (v2026.9.24)"); the +<sha> marks it as a
+    # post-release commit build. Falls back to 0.0.0 when unknown.
+    base = f"{base_version}+{commit[:7]}"
     # Same convention as tags: -1 is the first packaging; -2, -3... for
     # rebuilds of the same upstream commit (e.g. build-system changes like
     # .pyc precompilation that don't change the upstream ref).
@@ -52,12 +59,13 @@ def deb_version_for_commit(commit: str, deb_revision: int = 1) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 3):
-        print("usage: deb_version.py <tag|commit> [debian-revision]", file=sys.stderr)
+    if len(argv) not in (2, 3, 4):
+        print("usage: deb_version.py <tag|commit> [debian-revision] [base-version]", file=sys.stderr)
         return 2
-    ref, rev = argv[1], int(argv[2]) if len(argv) == 3 else 1
+    ref, rev = argv[1], int(argv[2]) if len(argv) >= 3 else 1
+    base_ver = argv[3] if len(argv) == 4 else "0.0.0"
     try:
-        print(deb_version_for_tag(ref, rev) if ref.startswith("v") else deb_version_for_commit(ref, rev))
+        print(deb_version_for_tag(ref, rev) if ref.startswith("v") else deb_version_for_commit(ref, rev, base_ver))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
