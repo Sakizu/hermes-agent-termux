@@ -92,15 +92,36 @@ build_one() { # $1=name $2=version $3=url $4=sha256 $5=extra ("abi3"|"")
             if grep -q 'HERMES_CROSS_BUILD' setup.py; then
                 echo "pillow-heif setup.py already patched"
             elif grep -q '"/usr/include"' setup.py; then
+                # the linux branch is a bare `else:` ("let's assume it's some
+                # kind of linux"); guard the host /usr paths so they don't
+                # shadow the NDK sysroot when cross-building. libheif itself
+                # comes from LIBHEIF_ROOT (handled by setup.py).
                 python3 - "$srcdir/setup.py" <<'EOF'
-import re, sys
+import sys
 p = sys.argv[1]
 s = open(p).read()
-s2 = re.sub(r'if\s+sys\.platform\.startswith\("linux"\):\s*\n((?:.*\n)*?)(?=\n\S)',
-            lambda m: 'if sys.platform.startswith("linux") and not os.environ.get("HERMES_CROSS_BUILD"):\n' + m.group(1),
-            s, count=1)
-assert s2 != s, "pillow-heif setup.py linux-branch pattern not found"
-open(p, "w").write(s2)
+old = '''        else:  # let's assume it's some kind of linux
+            # this old code waiting for refactoring, when time comes.
+            self._add_directory(include_dirs, "/usr/local/include")
+            self._add_directory(include_dirs, "/usr/include")
+            self._add_directory(library_dirs, "/usr/local/lib")
+            self._add_directory(library_dirs, "/usr/lib64")
+            self._add_directory(library_dirs, "/usr/lib")
+            self._add_directory(library_dirs, "/lib")
+'''
+new = '''        else:  # let's assume it's some kind of linux
+            # this old code waiting for refactoring, when time comes.
+            # HERMES_CROSS_BUILD: skip host paths when cross-compiling.
+            if not os.environ.get("HERMES_CROSS_BUILD"):
+                self._add_directory(include_dirs, "/usr/local/include")
+                self._add_directory(include_dirs, "/usr/include")
+                self._add_directory(library_dirs, "/usr/local/lib")
+                self._add_directory(library_dirs, "/usr/lib64")
+                self._add_directory(library_dirs, "/usr/lib")
+                self._add_directory(library_dirs, "/lib")
+'''
+assert old in s, "pillow-heif setup.py linux-branch pattern not found"
+open(p, "w").write(s.replace(old, new, 1))
 print("patched pillow-heif setup.py for cross build")
 EOF
             fi
