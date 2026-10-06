@@ -1,6 +1,6 @@
 --- a/pm/environment.py
 +++ b/pm/environment.py
-@@ -381,9 +381,41 @@ class PythonEnvironment:
+@@ -381,9 +381,45 @@ class PythonEnvironment:
              command += ["--extra", extra]
          for group in sorted(set(groups)):
              command += ["--group", group]
@@ -23,6 +23,10 @@
 +        for _w in _wh_wheels:
 +            _pkg = _w.name.split("-")[0].replace("_", "-").lower()
 +            command += ["--no-install-package", _pkg]
++        import sys as _sys
++        print(f"[termux-patch] wheelhouse wheels: {len(_wh_wheels)}, "
++              f"no-install flags: {command.count('--no-install-package')}",
++              file=_sys.stderr, flush=True)
          result = self._run(command, cwd=source, timeout=timeout)
          if result.returncode:
              raise classify_uv_failure("sync", result.returncode, result.stderr or result.stdout)
