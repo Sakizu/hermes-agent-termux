@@ -1,6 +1,6 @@
 --- a/pm/environment.py
 +++ b/pm/environment.py
-@@ -381,6 +381,19 @@ class PythonEnvironment:
+@@ -381,6 +381,20 @@ class PythonEnvironment:
              command += ["--extra", extra]
          for group in sorted(set(groups)):
              command += ["--group", group]
@@ -11,12 +11,13 @@
 +        # .../lib/hermes-agent/wheelhouse/ -- point uv at them so it installs
 +        # binaries instead of attempting source builds. Pure-Python packages
 +        # still resolve from PyPI as usual; --find-links is additive.
-+        # Guarded by sys.platform and dir presence: no-op everywhere else,
-+        # and no-op if the wheelhouse is absent (e.g. non-deb installs).
-+        if sys.platform == "android":
-+            _wh = Path("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
-+            if _wh.is_dir() and any(_wh.glob("*.whl")):
-+                command += ["--find-links", str(_wh)]
++        # Guarded by wheelhouse presence: the path is Termux-specific, so
++        # this is a no-op everywhere else, and no-op if the wheelhouse is
++        # absent (e.g. non-deb installs). NB: sys.platform is "linux" on
++        # Termux, not "android", so we do NOT gate on sys.platform.
++        _wh = Path("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
++        if _wh.is_dir() and any(_wh.glob("*.whl")):
++            command += ["--find-links", str(_wh)]
          result = self._run(command, cwd=source, timeout=timeout)
          if result.returncode:
              raise classify_uv_failure("sync", result.returncode, result.stderr or result.stdout)
