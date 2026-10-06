@@ -41,7 +41,7 @@ TRACKS = {
     "cffi": "c", "httptools": "c", "markupsafe": "c",
     "pillow-heif": "c", "psutil": "c",
     "jiter": "rust", "pydantic-core": "rust", "watchfiles": "rust",
-    "firecrawl-anydoc": "rust", "cryptography": "rust",
+    "firecrawl-anydoc": "rust", "cryptography": "rust", "rpds-py": "rust",
     "resvg-py": "pypi-android",  # prebuilt android abi3 wheel on PyPI
 }
 

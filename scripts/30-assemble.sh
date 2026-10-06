@@ -178,6 +178,16 @@ fi
 
 # --- 3c. cross-built wheels --------------------------------------------
 for whl in "$HERMES_WORK"/wheelhouse/*.whl; do unzip -q -o "$whl" -d "$SITE"; done
+# --- 3c2. ship the wheelhouse itself for `hermes pm` ---------------------
+# `hermes pm install` runs `uv sync` in a fresh venv; without these wheels
+# uv tries to build Rust/C extensions from source, which fails on Android
+# (no rustup target, no NDK). The pm patch points uv at this dir via
+# --find-links. Only our cross-built wheels live here (pure-Python comes
+# from PyPI as usual).
+WH_DIR="$STAGE/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse"
+mkdir -p "$WH_DIR"
+cp "$HERMES_WORK"/wheelhouse/*.whl "$WH_DIR/"
+echo "wheelhouse: $(ls "$WH_DIR"/*.whl | wc -l) wheels shipped"
 # --- 3d. site/ dead weight: test trees and type stubs are never imported at
 # runtime. dist-info license files are KEPT (legal hygiene) — they cost ~0.3MB.
 find "$SITE" -name '*.pyi' -delete

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 11-wheels-rust.sh — maturin/Rust wheel track
-# (jiter, pydantic-core, watchfiles, firecrawl-anydoc, cryptography),
+# (jiter, pydantic-core, watchfiles, firecrawl-anydoc, cryptography, rpds-py),
 # cross-compiled for aarch64-linux-android (API 24).
 #
 # Recipe (from the 2026-10-04 build log, WA track):
@@ -135,7 +135,7 @@ print(ms[0] if ms else '')
 # so a removed/bumped dep never leaves a stale wheel behind
 rm -f "$R_DIR"/dist/*.whl
 
-for name in jiter pydantic-core watchfiles firecrawl-anydoc cryptography; do
+for name in jiter pydantic-core watchfiles firecrawl-anydoc cryptography rpds-py; do
     ver="$(get "$name" version)"
     if [ -z "$ver" ]; then
         echo "11-wheels-rust.sh: upstream dropped '$name'; skipping"
