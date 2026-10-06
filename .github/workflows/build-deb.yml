@@ -176,12 +176,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd "${{ github.workspace }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          git pull --rebase origin main || true
+          git config user.name "Sakizu"
+          git config user.email "sakizu@hotmail.com"
+          # Release commits live on the `releases` branch so main stays clean.
+          # The release tag points here, so the release page shows
+          # "Release <tag>" instead of a random commit message.
+          git fetch origin main releases || true
+          git checkout -B releases origin/main
           git commit --allow-empty -m "Release ${{ steps.ver.outputs.release_tag }}"
-          git push origin main
+          git push -f origin releases
 
       - name: Create GitHub release
         if: steps.skip.outputs.skip != 'true'
