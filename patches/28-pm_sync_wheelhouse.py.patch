@@ -1,23 +1,44 @@
 --- a/pm/environment.py
 +++ b/pm/environment.py
-@@ -381,6 +381,20 @@ class PythonEnvironment:
+@@ -381,9 +381,41 @@ class PythonEnvironment:
              command += ["--extra", extra]
          for group in sorted(set(groups)):
              command += ["--group", group]
 +        # Termux/Android: uv cannot build native extensions from source here.
 +        # Rust crates fail (rustup has no aarch64-linux-android toolchain and
-+        # maturin bootstraps via rustup); C extensions fail (no NDK in the pm
-+        # venv). The .deb ships our cross-built wheels under
-+        # .../lib/hermes-agent/wheelhouse/ -- point uv at them so it installs
-+        # binaries instead of attempting source builds. Pure-Python packages
-+        # still resolve from PyPI as usual; --find-links is additive.
++        # maturin bootstraps via rustup). The .deb ships cross-built wheels
++        # under .../lib/hermes-agent/wheelhouse/; exclude those packages from
++        # `uv sync` (else uv falls back to the locked sdist and builds it)
++        # and install the prebuilt wheels directly afterwards. Pure-Python
++        # packages still resolve from PyPI as usual.
 +        # Guarded by wheelhouse presence: the path is Termux-specific, so
 +        # this is a no-op everywhere else, and no-op if the wheelhouse is
 +        # absent (e.g. non-deb installs). NB: sys.platform is "linux" on
 +        # Termux, not "android", so we do NOT gate on sys.platform.
++        # Wheel filenames: {name}-{version}-{py}-{abi}-{plat}.whl; the build
++        # derives versions from uv.lock, so wheel == locked version by
++        # construction (enforced by the assemble-time QA check).
 +        _wh = Path("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
-+        if _wh.is_dir() and any(_wh.glob("*.whl")):
-+            command += ["--find-links", str(_wh)]
++        _wh_wheels: list[Path] = sorted(_wh.glob("*.whl")) if _wh.is_dir() else []
++        for _w in _wh_wheels:
++            _pkg = _w.name.split("-")[0].replace("_", "-").lower()
++            command += ["--no-install-package", _pkg]
          result = self._run(command, cwd=source, timeout=timeout)
          if result.returncode:
              raise classify_uv_failure("sync", result.returncode, result.stderr or result.stdout)
++        if _wh_wheels:
++            # Install the prebuilt native wheels directly into the venv.
++            # --no-deps: no resolution, just install the files. Idempotent:
++            # runs on every sync; reinstalling an up-to-date wheel is a no-op.
++            _pip_result = self._run(
++                ["pip", "install", "--no-config", "--no-deps",
++                 "--python", str(self.executable),
++                 *(str(_w) for _w in _wh_wheels)],
++                cwd=source, timeout=timeout,
++            )
++            if _pip_result.returncode:
++                raise classify_uv_failure("pip", _pip_result.returncode,
++                                          _pip_result.stderr or _pip_result.stdout)
+ 
+     def export_requirements(self, source: Path, out: Path, *, extras: Sequence[str] = (),
+                             timeout: int = 1800) -> None:

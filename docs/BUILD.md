@@ -15,7 +15,7 @@ The daily CI run picks up new upstream tags automatically.
 
 | Path                 | Contents                                                     |
 |----------------------|--------------------------------------------------------------|
-| `patches/`           | 27 numbered `.patch` files + `apply.sh` (fails loudly on drift) |
+| `patches/`           | 28 numbered `.patch` files + `apply.sh` (fails loudly on drift) |
 | `scripts/`           | Build stages `00`–`30`, `deb_version.py`, `build.sh`         |
 | `scripts/lib/`       | Helpers: cross-compile envs, wheel assembler, `uv.lock` resolvers |
 | `launchers/`         | `launcher.sh.in` template for the three launchers            |
@@ -35,15 +35,16 @@ is already done.
 2. **C wheels** (`10-wheels-c.sh`): cross-compiles five setuptools-C
    extensions (cffi, httptools, markupsafe, pillow-heif, psutil), assembles
    honest `android_24_arm64_v8a` wheels.
-3. **Rust wheels** (`11-wheels-rust.sh`): builds five maturin crates (jiter,
-   pydantic-core, watchfiles, firecrawl-anydoc, cryptography) for
+3. **Rust wheels** (`11-wheels-rust.sh`): builds six maturin crates (jiter,
+   pydantic-core, watchfiles, firecrawl-anydoc, cryptography, rpds-py) for
    `aarch64-linux-android`. ~77% of build time.
 4. **TUI** (`20-tui.sh`): `npm ci` on the `ui-tui` workspace, esbuilds the
    entry point.
 5. **Assemble** (`30-assemble.sh`): snapshots upstream, applies `patches/`,
    unpacks the dependency closure (pure-Python wheels from `uv.lock`, the
-   prebuilt `resvg-py` Android wheel, ten cross-built wheels), mints
-   launchers and `install-stamp.json`, builds the `.deb`, runs QA.
+   prebuilt `resvg-py` Android wheel, eleven cross-built wheels), ships the
+   wheelhouse for `hermes pm`, mints launchers and `install-stamp.json`,
+   builds the `.deb`, runs QA.
 
 Wheel versions and sdist hashes come from the target checkout's `uv.lock`
 at build time, so upstream dependency bumps need no repo edits. Pillow is

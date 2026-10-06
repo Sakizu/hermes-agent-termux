@@ -34,8 +34,9 @@ ENV = {
 # Native deps we know how to provide for android (cross-built wheel or PyPI
 # android wheel); everything else with no pure wheel is reported as unknown.
 NATIVE_KNOWN = {
-    "cryptography", "cffi", "httptools", "watchfiles", "pillow", "pillow-heif",
+    "cryptography", "cffi", "httptools", "watchfiles", "pillow-heif",
     "firecrawl-anydoc", "jiter", "pydantic-core", "markupsafe", "psutil", "resvg-py",
+    "rpds-py",
 }
 
 
