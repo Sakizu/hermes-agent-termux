@@ -22,4 +22,7 @@ export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 export HERMES_NODE="${HERMES_NODE:-$PREFIX/bin/node}"
 export HERMES_FTS5_CJK_SO="${HERMES_FTS5_CJK_SO:-$root/lib/libfts5_cjk.so}"
 export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-${XDG_CACHE_HOME:-$HOME/.cache}/hermes-pycache}"
+# Termux: cross-built native wheels in $SITE (cryptography, pillow-heif) link
+# against $PREFIX/lib (libssl.so.3, libheif.so.1); the loader needs it explicit.
+export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$PYTHON" -P -c 'import os, site, sys; sys.argv[0]='"'"'@PROG@'"'"'; site.addsitedir(os.environ['"'"'HERMES_SITE'"'"']); from @ENTRY_IMPORT@ import main; sys.exit(main())' "$@"
