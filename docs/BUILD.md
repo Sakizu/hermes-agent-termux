@@ -74,6 +74,14 @@ Key Termux-specific patches:
 - `cffi` is kept in `site/` (not dead): `cryptography`'s Rust bindings
   import `_cffi_backend` at load time.
 
+Patch hygiene notes (from 2026-10-07 deep audit):
+- **22** (`hermes_state_lockguard`): obsolete — adds `"android"` to the
+  `F_OFD_SETLK` fallback dict, but CPython exports it natively since 3.12
+  (we ship 3.14). Harmless dead code; safe to remove.
+- **26** (`tools_environments_file_sync`): defensive `try/except` around
+  `import psutil` — no longer strictly needed now that psutil ships in the
+  wheelhouse, but harmless. Keep or drop.
+
 ## Versioning
 
 `scripts/deb_version.py` maps upstream refs to deb versions:
