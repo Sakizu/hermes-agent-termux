@@ -61,6 +61,19 @@ for `/proc` features, `bash` resolved via `shutil.which`, `psutil` imports
 deferred so startup never fails where it is unavailable. `patches/apply.sh`
 dry-runs everything first — upstream drift fails loudly, never half-patched.
 
+Key Termux-specific patches:
+- **28** (`pm_sync_wheelhouse`): `hermes pm install`/`repair` exclude
+  wheelhouse natives from `uv sync` via `--no-install-package` and install
+  the 11 cross-built wheels directly; exports `LD_LIBRARY_PATH` so the
+  pm-managed Python finds `libssl.so.3` for `cryptography`.
+- **29** (`pm_bionic_gaps_ldpath`): bionic gap for `gh`; `LD_LIBRARY_PATH`
+  in `activation_environment()` for shell integration.
+- Launchers (`launchers/launcher.sh.in`) export
+  `LD_LIBRARY_PATH="$PREFIX/lib"` so `site/` natives (`cryptography`,
+  `pillow_heif`) load under the main CLI.
+- `cffi` is kept in `site/` (not dead): `cryptography`'s Rust bindings
+  import `_cffi_backend` at load time.
+
 ## Versioning
 
 `scripts/deb_version.py` maps upstream refs to deb versions:
