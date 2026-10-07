@@ -1,6 +1,6 @@
 --- a/pm/environment.py
 +++ b/pm/environment.py
-@@ -381,9 +381,45 @@ class PythonEnvironment:
+@@ -381,9 +381,51 @@ class PythonEnvironment:
              command += ["--extra", extra]
          for group in sorted(set(groups)):
              command += ["--group", group]
@@ -17,16 +17,22 @@
 +        # Termux, not "android", so we do NOT gate on sys.platform.
 +        # Wheel filenames: {name}-{version}-{py}-{abi}-{plat}.whl; the build
 +        # derives versions from uv.lock, so wheel == locked version by
-+        # construction (enforced by the assemble-time QA check).
++        # construction.
 +        _wh = Path("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
 +        _wh_wheels: list[Path] = sorted(_wh.glob("*.whl")) if _wh.is_dir() else []
++        if _wh_wheels:
++            # The pm-managed Python is not the Termux system Python, so the
++            # dynamic linker does not search $PREFIX/lib by default. Prebuilt
++            # wheels like cryptography need libssl.so.3 at import time.
++            # Export for this process and all children (uv, venv python).
++            import os as _os
++            _tl = "/data/data/com.termux/files/usr/lib"
++            _ld = _os.environ.get("LD_LIBRARY_PATH", "")
++            if _tl not in _ld.split(":"):
++                _os.environ["LD_LIBRARY_PATH"] = f"{_tl}:{_ld}" if _ld else _tl
 +        for _w in _wh_wheels:
 +            _pkg = _w.name.split("-")[0].replace("_", "-").lower()
 +            command += ["--no-install-package", _pkg]
-+        import sys as _sys
-+        print(f"[termux-patch] wheelhouse wheels: {len(_wh_wheels)}, "
-+              f"no-install flags: {command.count('--no-install-package')}",
-+              file=_sys.stderr, flush=True)
          result = self._run(command, cwd=source, timeout=timeout)
          if result.returncode:
              raise classify_uv_failure("sync", result.returncode, result.stderr or result.stdout)
