@@ -52,3 +52,22 @@
  
      def export_requirements(self, source: Path, out: Path, *, extras: Sequence[str] = (),
                              timeout: int = 1800) -> None:
+--- a/pm/recovery.py
++++ b/pm/recovery.py
+@@ -41,6 +41,16 @@ def validate_environment(python: Path, *, env: dict, cwd: Path) -> None:
+         "        bundle = pathlib.Path(loaded.where())\n"
+         "        assert bundle.is_file() and bundle.stat().st_size >= 1024, 'CA bundle is missing'\n"
+     )
++    # Termux/Android: prebuilt wheels (e.g. cryptography) need Termux's
++    # libssl.so.3 at import time; the pm-managed Python does not search
++    # $PREFIX/lib by default. Guarded by wheelhouse presence (no-op elsewhere).
++    from pathlib import Path as _P
++    _twh = _P("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
++    if _twh.is_dir() and any(_twh.glob("*.whl")):
++        _tlib = "/data/data/com.termux/files/usr/lib"
++        _tld = env.get("LD_LIBRARY_PATH", "")
++        if _tlib not in _tld.split(":"):
++            env = {**env, "LD_LIBRARY_PATH": f"{_tlib}:{_tld}" if _tld else _tlib}
+     result = subprocess.run([str(python), "-I", "-c", script], cwd=cwd, env=env,
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+     if result.returncode:
