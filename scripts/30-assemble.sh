@@ -197,15 +197,14 @@ find "$SITE" -type d \( -name 'tests' -o -name 'test' \) -prune -exec rm -rf {} 
 # the .deb imports — each verified with zero importers across app/ + site/
 # (static, dynamic, and try/except greps), including the excluded dev dirs:
 # - resvg_py: sole importer is scripts/generate_icons.py (excluded from package)
-# - cffi: its only consumer brotlicffi is absent from site/ (messaging extra
-#   not installed); _cffi_backend.so is imported only by cffi itself
 # - pycparser: imported only by cffi/cparser.py (transitively dead)
 # - pathspec, tenacity: declared in pyproject but zero importers in the entire
 #   upstream tree (app, site, scripts, apps, website, evals)
-SITE_DEAD_PKGS="resvg_py cffi pycparser pathspec tenacity"
+# NOTE: cffi is KEPT (not dead): cryptography's Rust bindings import
+# _cffi_backend at load time. Removing cffi breaks `import cryptography`.
+SITE_DEAD_PKGS="resvg_py pycparser pathspec tenacity"
 for _p in $SITE_DEAD_PKGS; do rm -rf "$SITE/${_p:?}"; done
 unset _p
-rm -f "$SITE"/_cffi_backend*.so
 # their dist-info dirs go with them (the licenses/ subdirs inside are KEPT
 # per the legal-hygiene rule — only the package metadata dirs are removed)
 for _p in $SITE_DEAD_PKGS; do rm -rf "$SITE"/${_p:?}-*.dist-info; done
@@ -340,7 +339,7 @@ fi
 echo "QA: no .pyc in package (bytecode compiles on-device into the prefix cache)"
 # guardrail: round-2 dead weight must not resurrect (e.g. after a uv.lock bump
 # re-adds a package). Each entry documents why it is dead in 3e above.
-for _p in resvg_py cffi pycparser pathspec tenacity; do
+for _p in resvg_py pycparser pathspec tenacity; do
     if [ -e "$SITE/$_p" ]; then echo "QA FAIL: dead package resurrected: $_p" >&2; exit 1; fi
 done
 unset _p
