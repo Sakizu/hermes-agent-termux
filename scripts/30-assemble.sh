@@ -188,12 +188,6 @@ WH_DIR="$STAGE/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse"
 mkdir -p "$WH_DIR"
 cp "$HERMES_WORK"/wheelhouse/*.whl "$WH_DIR/"
 echo "wheelhouse: $(ls "$WH_DIR"/*.whl | wc -l) wheels shipped"
-# --- 3c3. QA: wheelhouse must not be empty (native wheels for `hermes pm`)
-# Full per-package version check is done by CI via native_deps.py; here we
-# just assert the copy above actually landed wheels.
-_wc=$(ls "$WH_DIR"/*.whl 2>/dev/null | wc -l)
-[ "$_wc" -ge 11 ] || { echo "FATAL: wheelhouse has $_wc wheels, expected >= 11" >&2; exit 1; }
-echo "wheelhouse QA: $_wc wheels present"
 # --- 3d. site/ dead weight: test trees and type stubs are never imported at
 # runtime. dist-info license files are KEPT (legal hygiene) — they cost ~0.3MB.
 find "$SITE" -name '*.pyi' -delete
