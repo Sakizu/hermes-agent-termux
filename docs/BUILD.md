@@ -15,7 +15,7 @@ The daily CI run picks up new upstream tags automatically.
 
 | Path                 | Contents                                                     |
 |----------------------|--------------------------------------------------------------|
-| `patches/`           | 28 numbered `.patch` files + `apply.sh` (fails loudly on drift) |
+| `patches/`           | 29 numbered `.patch` files + `apply.sh` (fails loudly on drift) |
 | `scripts/`           | Build stages `00`–`30`, `deb_version.py`, `build.sh`         |
 | `scripts/lib/`       | Helpers: cross-compile envs, wheel assembler, `uv.lock` resolvers |
 | `launchers/`         | `launcher.sh.in` template for the three launchers            |

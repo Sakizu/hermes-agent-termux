@@ -13,8 +13,9 @@
 +        # packages still resolve from PyPI as usual.
 +        # Guarded by wheelhouse presence: the path is Termux-specific, so
 +        # this is a no-op everywhere else, and no-op if the wheelhouse is
-+        # absent (e.g. non-deb installs). NB: sys.platform is "linux" on
-+        # Termux, not "android", so we do NOT gate on sys.platform.
++        # absent (e.g. non-deb installs). NB: sys.platform is "android" on
++        # Termux (PEP 738, Python 3.13+), but we gate on the wheelhouse path
++        # instead so the patch stays correct even if the interpreter changes.
 +        # Wheel filenames: {name}-{version}-{py}-{abi}-{plat}.whl; the build
 +        # derives versions from uv.lock, so wheel == locked version by
 +        # construction.

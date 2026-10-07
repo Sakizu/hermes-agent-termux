@@ -1,0 +1,29 @@
+--- a/pm/environments.py
++++ b/pm/environments.py
+@@ -464,6 +464,16 @@ def activation_environment(project_root: Path) -> dict[str, str]:
+     test_python = testenv_python(project_root)
+     if test_python is not None:
+         env["__HERMES_TEST_PYTHON"] = str(test_python)
++    # Termux/Android: the pm venv's Python is not Termux-built, so native
++    # wheels (cryptography etc.) need $PREFIX/lib on LD_LIBRARY_PATH to
++    # resolve libssl.so.3 at import time. Guarded by wheelhouse presence.
++    from pathlib import Path as _P
++    _twh = _P("/data/data/com.termux/files/usr/lib/hermes-agent/wheelhouse")
++    if _twh.is_dir() and any(_twh.glob("*.whl")):
++        _tlib = "/data/data/com.termux/files/usr/lib"
++        _tld = env.get("LD_LIBRARY_PATH", "")
++        if _tlib not in _tld.split(":"):
++            env["LD_LIBRARY_PATH"] = f"{_tlib}:{_tld}" if _tld else _tlib
+     return env
+ 
+ 
+--- a/pm/packages.py
++++ b/pm/packages.py
+@@ -708,6 +708,7 @@ class Gh(BinaryPackage):
+     name = "gh"
+     optional = True
+     binary_rel = {"win32": "bin/gh.exe", "posix": "bin/gh"}
++    gaps = {"linux-arm64-bionic": "gh has no Android build; use pkg install gh"}
+ 
+     def fetch_url(self, version: str, target: str) -> str:
+         # GitHub CLI's Linux release matrix is built with CGO_ENABLED=0,
