@@ -1,6 +1,8 @@
+diff --git a/pm/environment.py b/pm/environment.py
+index 076ebd8c..393e5785 100644
 --- a/pm/environment.py
 +++ b/pm/environment.py
-@@ -381,9 +381,51 @@ class PythonEnvironment:
+@@ -381,9 +381,52 @@ class PythonEnvironment:
              command += ["--extra", extra]
          for group in sorted(set(groups)):
              command += ["--group", group]
@@ -53,6 +55,8 @@
  
      def export_requirements(self, source: Path, out: Path, *, extras: Sequence[str] = (),
                              timeout: int = 1800) -> None:
+diff --git a/pm/recovery.py b/pm/recovery.py
+index 5ecee0a6..1185dba7 100644
 --- a/pm/recovery.py
 +++ b/pm/recovery.py
 @@ -41,6 +41,16 @@ def validate_environment(python: Path, *, env: dict, cwd: Path) -> None:
