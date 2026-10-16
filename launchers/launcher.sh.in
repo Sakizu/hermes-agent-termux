@@ -22,6 +22,10 @@ export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 export HERMES_NODE="${HERMES_NODE:-$PREFIX/bin/node}"
 export HERMES_FTS5_CJK_SO="${HERMES_FTS5_CJK_SO:-$root/lib/libfts5_cjk.so}"
 export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-${XDG_CACHE_HOME:-$HOME/.cache}/hermes-pycache}"
+# Never write .pyc: stale bytecode survived upgrades (2026-10-16 i18n bug —
+# old t() without Patch 31 fallback rendered raw keys). Recompiling each
+# startup is cheap on Termux and eliminates the entire class of bugs.
+export PYTHONDONTWRITEBYTECODE=1
 # Termux: cross-built native wheels in $SITE (cryptography, pillow-heif) link
 # against $PREFIX/lib (libssl.so.3, libheif.so.1); the loader needs it explicit.
 export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
