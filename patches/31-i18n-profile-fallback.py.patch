@@ -1,0 +1,27 @@
+--- a/agent/i18n.py
++++ b/agent/i18n.py
+@@ -228,8 +228,24 @@ def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
+     home = _current_home()
+     target = _normalize_lang(lang, home) if lang else _resolve_language(home)
+     value = _load_catalog(target, home).get(key)
+     if value is None and target != DEFAULT_LANGUAGE:
+         value = _load_catalog(DEFAULT_LANGUAGE, home).get(key)
++    if value is None:
++        # Termux/named-profile safety net: the layered catalog can come back
++        # empty when it was first cached before the profile home was fully
++        # resolved (e.g. `-p <profile>` pre-parse races). Fall back to the
++        # bundled English catalog directly, bypassing the cache, so the UI
++        # never renders raw dotted keys.
++        try:
++            bundled = _load_bundled(DEFAULT_LANGUAGE)
++            value = bundled.get(key)
++            if value is not None:
++                logger.debug(
++                    "i18n cache-miss recovery: key=%r served from bundled %s",
++                    key, DEFAULT_LANGUAGE,
++                )
++        except Exception as exc:
++            logger.debug("i18n bundled fallback failed for key=%r: %s", key, exc)
+     if value is None:
+         logger.debug("i18n miss: key=%r lang=%r", key, target)
+         value = key
