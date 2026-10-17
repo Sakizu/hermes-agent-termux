@@ -279,7 +279,9 @@ build_pure() { # $1=name $2=version $3=url $4=sha256 $5=no_ext_env_var
         "$VPY" "$LIB/xrun.py" build_py build_ext
         "$VPY" "$LIB/assemble_wheel.py" --pure
     else
-        "$VPY" -m pip wheel --no-build-isolation --no-deps -w "$WHEELS_OUT" .
+        # PEP 517: use build isolation so the backend (pep517_backend) is available.
+        # The NO_EXTENSIONS env var is inherited by the isolated build env.
+        "$VPY" -m pip wheel --no-deps -w "$WHEELS_OUT" .
     fi
     unset "$noext"
     echo "build_pure: $name $ver (pure Python, $noext=1)"
