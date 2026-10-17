@@ -1,0 +1,6 @@
+--- a/pm/shell.py
++++ b/pm/shell.py
+@@ -1,4 +1,4 @@
+-"""pm.shell(): the one place Hermes resolves the shell it runs commands wit
++r"""pm.shell(): the one place Hermes resolves the shell it runs commands wit
+ 
