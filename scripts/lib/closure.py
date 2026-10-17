@@ -36,7 +36,6 @@ ENV = {
 NATIVE_KNOWN = {
     "cryptography", "cffi", "httptools", "watchfiles", "pillow", "pillow-heif",
     "firecrawl-anydoc", "jiter", "pydantic-core", "markupsafe", "psutil", "resvg-py",
-    "rpds-py",
 }
 
 
@@ -77,7 +76,16 @@ def main() -> int:
         raise KeyError(f"no candidate for {dep}")
 
     closure: dict[str, tuple[str, dict]] = {}
+    # Seed with hermes-agent plus the firecrawl extra (web_extract needs the
+    # firecrawl-py SDK; it's an optional dep so the default walk misses it).
+    # The extra name in upstream pyproject.toml is "firecrawl".
     stack: list = [{"name": "hermes-agent"}]
+    hermes_pkg = pick({"name": "hermes-agent"})
+    firecrawl_extra = hermes_pkg.get("optional-dependencies", {}).get("firecrawl", [])
+    for dep in firecrawl_extra:
+        dep_name = dep["name"] if isinstance(dep, dict) else dep
+        if dep_name not in closure:
+            stack.append({"name": dep_name} if isinstance(dep, str) else dep)
     while stack:
         edge = stack.pop()
         name = edge["name"]
