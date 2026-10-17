@@ -43,6 +43,11 @@ TRACKS = {
     "jiter": "rust", "pydantic-core": "rust", "watchfiles": "rust",
     "firecrawl-anydoc": "rust", "cryptography": "rust", "rpds-py": "rust",
     "resvg-py": "pypi-android",  # prebuilt android abi3 wheel on PyPI
+    "aiohttp": "pypi-android",  # prebuilt cp314 android wheel on PyPI
+    "yarl": "c-pure",           # sdist, YARL_NO_EXTENSIONS=1
+    "multidict": "c-pure",      # sdist, MULTIDICT_NO_EXTENSIONS=1
+    "frozenlist": "c-pure",     # sdist, FROZENLIST_NO_EXTENSIONS=1
+    "propcache": "c-pure",      # sdist, PROPCACHE_NO_EXTENSIONS=1
 }
 
 

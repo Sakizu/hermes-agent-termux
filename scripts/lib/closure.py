@@ -36,6 +36,10 @@ ENV = {
 NATIVE_KNOWN = {
     "cryptography", "cffi", "httptools", "watchfiles", "pillow", "pillow-heif",
     "firecrawl-anydoc", "jiter", "pydantic-core", "markupsafe", "psutil", "resvg-py",
+    # aiohttp + deps for firecrawl-py (web_extract backend). aiohttp has a
+    # prebuilt android wheel; yarl/multidict/frozenlist/propcache build
+    # pure-Python with *_NO_EXTENSIONS=1.
+    "aiohttp", "yarl", "multidict", "frozenlist", "propcache",
 }
 
 
