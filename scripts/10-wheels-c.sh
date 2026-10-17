@@ -250,6 +250,50 @@ for name in cffi httptools markupsafe pillow-heif; do
     fi
     build_one "$name" "$ver" "$(get "$name" url)" "$(get "$name" sha256)"
 done
+
+# Pure-Python builds for aiohttp deps (C extensions disabled via *_NO_EXTENSIONS).
+# These are runtime deps of firecrawl-py (web_extract backend). The C extensions
+# are optional; pure-Python mode works fine for network-bound web extraction.
+build_pure() { # $1=name $2=version $3=url $4=sha256 $5=no_ext_env_var
+    local name="$1" ver="$2" url="$3" sha="$4" noext="$5"
+    local tarball="$C_DIR/src/$(basename "$url")"
+    local srcdir
+    if [ -f "$tarball" ]; then
+        srcdir="$C_DIR/src/$(tarball_topdir "$tarball")"
+    else
+        srcdir="$C_DIR/src/${name}-${ver}"
+    fi
+    if [ ! -d "$srcdir" ]; then
+        fetch_sdist "$url" "$sha" "$tarball"
+        tar --no-same-owner -xzf "$tarball" -C "$C_DIR/src"
+        srcdir="$C_DIR/src/$(tarball_topdir "$tarball")"
+    fi
+    [ -d "$srcdir" ] || { echo "build_pure: no source dir for $name" >&2; exit 1; }
+    cd "$srcdir"
+    rm -f "$WHEELS_OUT/${name//-/_}-"*.whl
+    # Disable C extensions -> pure Python build
+    export "$noext=1"
+    rm -rf build
+    # Try setup.py first (multidict), fall back to pip wheel (PEP 517: yarl, frozenlist, propcache)
+    if [ -f setup.py ]; then
+        "$VPY" "$LIB/xrun.py" build_py build_ext
+        "$VPY" "$LIB/assemble_wheel.py" --pure
+    else
+        "$VPY" -m pip wheel --no-build-isolation --no-deps -w "$WHEELS_OUT" .
+    fi
+    unset "$noext"
+    echo "build_pure: $name $ver (pure Python, $noext=1)"
+}
+
+for spec in "yarl:YARL_NO_EXTENSIONS" "multidict:MULTIDICT_NO_EXTENSIONS" "frozenlist:FROZENLIST_NO_EXTENSIONS" "propcache:PROPCACHE_NO_EXTENSIONS"; do
+    name="${spec%%:*}"; noext="${spec##*:}"
+    ver="$(get "$name" version)"
+    if [ -z "$ver" ]; then
+        echo "10-wheels-c.sh: upstream dropped '$name'; skipping"
+        continue
+    fi
+    build_pure "$name" "$ver" "$(get "$name" url)" "$(get "$name" sha256)" "$noext"
+done
 psutil_ver="$(get psutil version)"
 if [ -z "$psutil_ver" ]; then
     echo "10-wheels-c.sh: upstream dropped 'psutil'; skipping"
