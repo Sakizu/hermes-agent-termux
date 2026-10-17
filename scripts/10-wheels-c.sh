@@ -277,7 +277,13 @@ build_pure() { # $1=name $2=version $3=url $4=sha256 $5=no_ext_env_var
     # Try setup.py first (multidict), fall back to pip wheel (PEP 517: yarl, frozenlist, propcache)
     if [ -f setup.py ]; then
         "$VPY" "$LIB/xrun.py" build_py build_ext
-        "$VPY" "$LIB/assemble_wheel.py" --pure
+        shopt -s nullglob
+        local buildlibs=(build/lib.*)
+        shopt -u nullglob
+        [ "${#buildlibs[@]}" -eq 1 ] || { echo "build_pure($name): expected 1 build/lib.*, found ${#buildlibs[@]}" >&2; exit 1; }
+        "$VPY" "$LIB/assemble_wheel.py" --src "$srcdir" --build-lib "${buildlibs[0]}" \
+            --dist "$name" --version "$ver" --out "$WHEELS_OUT" \
+            --tag "py3-none-any"
     else
         # PEP 517: use build isolation so the backend (pep517_backend) is available.
         # The NO_EXTENSIONS env var is inherited by the isolated build env.
