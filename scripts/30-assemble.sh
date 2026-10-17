@@ -225,6 +225,62 @@ rm -f "$SITE/tqdm/tqdm.1"
 rm -f "$SITE/urllib3/contrib/emscripten/emscripten_fetch_worker.js"
 echo "site/: $(ls "$SITE" | wc -l) top-level entries"
 
+# --- 3c. aiohttp android wheel from PyPI (prebuilt cp314) --------------
+# aiohttp ships a cp314 android wheel; download like resvg-py (section 3b).
+AIOHTTP_VER="$(python3 "$LIB/native_deps.py" "$HERMES_SRC/uv.lock" \
+    | python3 -c "import json,sys; ds=[p for p in json.load(sys.stdin) if p['name']=='aiohttp']; print(ds[0]['version'] if ds else '')")"
+if [ -n "$AIOHTTP_VER" ]; then
+AIOHTTP_FILE="$(python3 -c "
+import json, urllib.request
+req = urllib.request.Request('https://pypi.org/pypi/aiohttp/$AIOHTTP_VER/json')
+d = json.load(urllib.request.urlopen(req, timeout=30))
+cands = [(f['filename'], f['digests']['sha256']) for f in d['urls']
+         if 'android_24_arm64_v8a' in f['filename'] and 'cp314' in f['filename'] and f['digests'].get('sha256')]
+assert cands, 'no android wheel (with sha256) for aiohttp $AIOHTTP_VER'
+print(sorted(cands)[0][0])
+print(sorted(cands)[0][1])")"
+AIOHTTP_NAME="$(printf '%s' "$AIOHTTP_FILE" | head -1)"
+AIOHTTP_SHA="$(printf '%s' "$AIOHTTP_FILE" | tail -1)"
+python3 - "$AIOHTTP_NAME" "$AIOHTTP_SHA" "$A_DIR" <<'PYEOF'
+import hashlib, re, sys, time, urllib.request
+want, sha256, out = sys.argv[1], sys.argv[2], sys.argv[3]
+def fetch(url, dest):
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "hermes-agent-termux"})
+            with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:
+                f.write(r.read())
+            h = hashlib.sha256(open(dest, "rb").read()).hexdigest()
+            assert h == sha256, f"sha256 mismatch for {want}"
+            return
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(2 * (attempt + 1))
+html = None
+for attempt in range(4):
+    try:
+        html = urllib.request.urlopen("https://pypi.org/simple/aiohttp/", timeout=30).read().decode()
+        break
+    except Exception:
+        if attempt == 3:
+            raise
+        time.sleep(2 * (attempt + 1))
+m = re.search(r'href="([^"]*' + re.escape(want) + r'(?:#[^"]*)?)"', html)
+assert m, f"{want} not on the simple index"
+href = m.group(1)
+if not href.startswith("http"):
+    href = "https://files.pythonhosted.org/" + href.lstrip("/")
+dest = f"{out}/{want}"
+fetch(href, dest)
+print(f"downloaded {want}")
+PYEOF
+unzip -q -o "$A_DIR/$AIOHTTP_NAME" -d "$SITE"
+echo "aiohttp android wheel installed"
+else
+echo "aiohttp not in native deps; skipping"
+fi
+
 # --- 4. libfts5_cjk.so (NDK clang; upstream native/fts5_cjk/build.sh) ---
 TC="$HERMES_NDK_DIR"
 FTS="$APP/native/fts5_cjk"
